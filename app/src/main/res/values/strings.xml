@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">FLCoSQR04</string>
+    <string name="capture">Capture</string>
+    <string name="stop">Stop</string>
+    <string name="preprocessing">Preprocessing…</string>
+    <string name="processing">Processing…</string>
+</resources>
