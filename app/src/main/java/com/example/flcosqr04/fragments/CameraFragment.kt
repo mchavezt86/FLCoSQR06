@@ -166,6 +166,8 @@ class CameraFragment : Fragment()  {
 
     //Added by Miguel 20/08/2020: Avoids break of port/land when the camera is rotated.
     private var recorded: Boolean = false
+    //Added by Miguel 28/08
+    private lateinit var mainActivity : MainActivity
 
     /** Live data listener for changes in the device orientation relative to the camera */
     private lateinit var relativeOrientation: OrientationLiveData
@@ -182,7 +184,10 @@ class CameraFragment : Fragment()  {
         overlay = view.findViewById(R.id.overlay)
         viewFinder = view.findViewById(R.id.view_finder)
 
+        //Added by Miguel 28/08
         recorded = false
+        mainActivity = requireActivity() as MainActivity
+        mainActivity.video = "Test"
 
         viewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
@@ -386,11 +391,12 @@ class CameraFragment : Fragment()  {
 
                         // Finishes our current camera screen
                         delay(MainActivity.ANIMATION_SLOW_MILLIS)
-                        recorded = true
-                        //navController.popBackStack() //Commented by Miguel 27/08
+                        recorded = true // Added by Miguel
+                        mainActivity.video = "$outputFile" // Added by Miguel 28/08
+                        navController.popBackStack() //Commented by Miguel 27/08
 
                         //Added by Miguel 27/08
-                        try {
+                        /*try {
                             camera.close()
                         } catch (exc: Throwable) {
                             Log.e(TAG, "Error closing camera", exc)
@@ -399,7 +405,7 @@ class CameraFragment : Fragment()  {
                         recorder.release()
                         recorderSurface.release()
                         Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                           .navigate(CameraFragmentDirections.actionCameraToDecoder("$outputFile"))
+                           .navigate(CameraFragmentDirections.actionCameraToDecoder("$outputFile")) */
                     }
                 }
             }
@@ -465,14 +471,14 @@ class CameraFragment : Fragment()  {
                 }
             }, handler)
     }
-/*
+
     override fun onStop() {
         super.onStop()
-        /*try {
+        try {
             camera.close()
         } catch (exc: Throwable) {
             Log.e(TAG, "Error closing camera", exc)
-        }*/
+        }
         //Added by Miguel 27/08
         Log.i("mact","CameraOnStop")
         /*if (recorded) {
@@ -483,21 +489,21 @@ class CameraFragment : Fragment()  {
 
     override fun onDestroy() {
         super.onDestroy()
-        /*cameraThread.quitSafely()
+        cameraThread.quitSafely()
         recorder.release()
-        recorderSurface.release()*/
+        recorderSurface.release()
         //Added by Miguel 20/08
         Log.i("mact","CameraOnDestroy")
         /*if (recorded) {
             Navigation.findNavController(requireActivity(), R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))
         }*/
-        if (recorded) {
+        /*if (recorded) {
             Navigation.findNavController(requireActivity(), R.id.fragment_container)
                 .navigate(CameraFragmentDirections.actionCameraToDecoder("$outputFile"))
-        }
+        }*/
     }
-*/
+
     companion object {
         private val TAG = CameraFragment::class.java.simpleName
 

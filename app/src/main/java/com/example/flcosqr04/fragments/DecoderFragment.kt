@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
+import com.example.flcosqr04.MainActivity
 import com.example.flcosqr04.R
 import kotlinx.coroutines.delay
 import net.sourceforge.zbar.*
@@ -46,6 +47,7 @@ class DecoderFragment : Fragment() {
     //private var scanner = ImageScanner()
 
     private var result = 0// Results of the QR scanner
+    private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -89,7 +91,7 @@ class DecoderFragment : Fragment() {
                     /*Log.i("javacv","Gray frame size: (" + frameMat.size().width().toString()
                     + "," + frameMat.size().height().toString() + ")")*/
                     // Create ZBar Image and set it with Gray image.
-                    frameImg = Image(frameGray.size().width(),frameGray.size().height(), "GREY")
+                    frameImg = Image(frameGray.size().width(),frameGray.size().height(), "Y800")
                     frameImg.setData(frameGray.data().stringBytes)
                     Log.i("javacv","ImageZbar frame size: (" + frameImg.width.toString()
                             + "," + frameImg.height.toString() + ")")
@@ -120,6 +122,8 @@ class DecoderFragment : Fragment() {
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
         mainView.text = textFrames.plus(totalFrames.toString())
+        mainActivity = requireActivity() as MainActivity
+        mainActivity.video = "Test"
     }
 
 }

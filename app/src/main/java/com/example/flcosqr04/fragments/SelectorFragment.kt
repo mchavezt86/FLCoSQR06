@@ -17,6 +17,7 @@ import androidx.navigation.Navigation
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.android.camera.utils.GenericListAdapter
+import com.example.flcosqr04.MainActivity
 import com.example.flcosqr04.R
 
 /**
@@ -25,6 +26,8 @@ import com.example.flcosqr04.R
  */
 
 class SelectorFragment : Fragment() {
+
+    private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -35,7 +38,15 @@ class SelectorFragment : Fragment() {
     @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        //Added by Miguel 28/08
+        mainActivity = requireActivity() as MainActivity
+        Log.i("mact","Video string is: " + mainActivity.video)
         view as RecyclerView
+        //Added by Miguel 28/08
+        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+            Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
+        }
         view.apply {
             layoutManager = LinearLayoutManager(requireContext())
 
@@ -55,7 +66,6 @@ class SelectorFragment : Fragment() {
                 }
             }
         }
-
     }
 
     companion object {

@@ -11,7 +11,7 @@
             android:id="@+id/action_selector_to_camera"
             app:destination="@id/cameraFragment" />
         <action
-            android:id="@+id/action_selectorFragment_to_decoderFragment"
+            android:id="@+id/action_selector_to_decoder"
             app:destination="@id/decoderFragment" />
     </fragment>
     <fragment
@@ -45,9 +45,6 @@
             app:argType="integer" />
         <argument android:name="zoom"
             app:argType="android.graphics.Rect" />
-        <action
-            android:id="@+id/action_camera_to_decoder"
-            app:destination="@id/decoderFragment" />
         <action
             android:id="@+id/action_cameraFragment_to_permissionsFragment"
             app:destination="@id/permissionsFragment" />
