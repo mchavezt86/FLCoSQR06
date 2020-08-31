@@ -50,7 +50,7 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
     // https://mvnrepository.com/artifact/me.dm7.barcodescanner/zbar - Added by Miguel
-    compile group: 'me.dm7.barcodescanner', name: 'zbar', version: '1.9.13'
+    implementation group: 'me.dm7.barcodescanner', name: 'zbar', version: '1.9.13'
 
 
     // Navigation library

@@ -28,6 +28,17 @@ import com.example.flcosqr04.R
 class SelectorFragment : Fragment() {
 
     private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
+    //mainActivity = requireActivity() as MainActivity
+    //private var mainActivity = requireActivity() as MainActivity
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        mainActivity = requireActivity() as MainActivity
+        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+            Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -39,7 +50,7 @@ class SelectorFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         //Added by Miguel 28/08
-        mainActivity = requireActivity() as MainActivity
+        //mainActivity = requireActivity() as MainActivity
         Log.i("mact","Video string is: " + mainActivity.video)
         view as RecyclerView
         //Added by Miguel 28/08
