@@ -19,6 +19,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.android.camera.utils.GenericListAdapter
 import com.example.flcosqr04.MainActivity
 import com.example.flcosqr04.R
+import kotlinx.coroutines.delay
 
 /**
  * In this [Fragment] we let users pick a camera, size and FPS to use for high
@@ -31,14 +32,14 @@ class SelectorFragment : Fragment() {
     //mainActivity = requireActivity() as MainActivity
     //private var mainActivity = requireActivity() as MainActivity
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    /*override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mainActivity = requireActivity() as MainActivity
         if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
         }
-    }
+    }*/
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -50,14 +51,14 @@ class SelectorFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         //Added by Miguel 28/08
-        //mainActivity = requireActivity() as MainActivity
+        mainActivity = requireActivity() as MainActivity
         Log.i("mact","Video string is: " + mainActivity.video)
         view as RecyclerView
         //Added by Miguel 28/08
-        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+        /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
-        }
+        }*/
         view.apply {
             layoutManager = LinearLayoutManager(requireContext())
 
@@ -76,6 +77,27 @@ class SelectorFragment : Fragment() {
                             item.zoom))
                 }
             }
+            //Added by Miguel 01/09
+            /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+
+                Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                    .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
+            }*/
+        }
+        //Added by Miguel 01/09
+        /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+
+            Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
+        }*/
+    }
+
+    override fun onResume() {
+        super.onResume()
+        //Added by Miguel 01/09
+        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+            Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
         }
     }
 

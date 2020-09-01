@@ -51,6 +51,11 @@ dependencies {
 
     // https://mvnrepository.com/artifact/me.dm7.barcodescanner/zbar - Added by Miguel
     implementation group: 'me.dm7.barcodescanner', name: 'zbar', version: '1.9.13'
+    // https://mvnrepository.com/artifact/com.google.zxing/core
+    implementation group: 'com.google.zxing', name: 'core', version: '3.4.0'
+    // https://mvnrepository.com/artifact/com.google.zxing/android-core
+    implementation group: 'com.google.zxing', name: 'android-core', version: '3.3.0'
+
 
 
     // Navigation library

@@ -16,6 +16,8 @@ import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
 import com.example.flcosqr04.MainActivity
 import com.example.flcosqr04.R
+import com.google.zxing.*
+import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
 import net.sourceforge.zbar.*
 import org.opencv.android.BaseLoaderCallback
@@ -38,6 +40,11 @@ import net.sourceforge.zbar.Config.*
 import kotlinx.coroutines.*
 import kotlin.concurrent.thread
 import kotlin.system.*
+import com.google.zxing.qrcode.QRCodeReader
+import com.google.zxing.qrcode.detector.*
+import com.google.zxing.qrcode.decoder.*
+import java.lang.Exception
+import java.util.*
 
 class DecoderFragment : Fragment() {
     /** AndroidX navigation arguments */
@@ -55,16 +62,30 @@ class DecoderFragment : Fragment() {
     private var job = Job()
     private val scope = CoroutineScope(job + Dispatchers.Main)
 
+    //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
+    private val hints = Hashtable<DecodeHintType, Any>()
+
     private fun decode(videoFile : String) : Int {
         //var mainView = view.findViewById<TextView>(R.id.video_analyser)
         val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
         var frame : Frame? // Frame grabbed.
         var frameMat = Mat() // Frame in Mat format.
-        var frameGray = Mat()// Frame converted to Grayscale
+        var matGray = Mat()// Frame converted to Grayscale
+        var frameProc : Frame //Frame processed
         var totalFrames = 0
         var frameImg : Image // Image for zbar QR scanner
-        var result : Int// Results of the QR scanner
+        //var result : Int// Results of the QR scanner
+        var result : Result // Results of the QR scanner
         var syms : SymbolSet
+        var bitmap : Bitmap
+        var binbitmap : BinaryBitmap
+
+        //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
+        hints[DecodeHintType.CHARACTER_SET] = "utf-8"
+        hints[DecodeHintType.TRY_HARDER] = true
+        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
+
+        var qrReader = QRCodeReader()
 
         try {//Start FrameGrabber
             //frameG.format = "mp4"
@@ -76,20 +97,35 @@ class DecoderFragment : Fragment() {
         do {//Loop to grab all frames
             try {
                 frame = frameG.grabFrame()
-                frameGray.release()
+                matGray.release()
                 frameMat.release()
                 //frameImg.destroy()
                 if (frame != null){
                     Log.i("javacv","Frame grabbed")
                     frameMat = converterToMat.convert(frame) //Frame to Mat
-                    cvtColor(frameMat,frameGray, COLOR_BGR2GRAY) //To Gray
+                    cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
+                    //Conversion to Bitmap
+                    frame = converterToMat.convert(matGray)
+                    bitmap = converterAndroid.convert(frame)
+                    //Int Array for bitmap
+                    var intData : IntArray = IntArray(bitmap.width * bitmap.height)
+                    bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+                    binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+                    bitmap.height,intData)))
+                    //ZXing reader
+                    try {
+                        result = qrReader.decode(binbitmap,hints)
+                        Log.i("QR Reader", result.text)
+                    } catch (e : Exception){
+                        Log.e("QR Reader", "Reader error: $e")
+                    }
                     /*Log.i("javacv","Gray frame size: (" + frameMat.size().width().toString()
                     + "," + frameMat.size().height().toString() + ")")*/
                     // Create ZBar Image and set it with Gray image.
-                    frameImg = Image(frameGray.size().width(),frameGray.size().height(), "Y800")
+                    /*frameImg = Image(frameGray.size().width(),frameGray.size().height(), "Y800")
                     frameImg.setData(frameGray.data().stringBytes)
                     Log.i("javacv","ImageZbar frame size: (" + frameImg.width.toString()
-                            + "," + frameImg.height.toString() + ")")
+                            + "," + frameImg.height.toString() + ")")*/
 
                     /*val scanner = ImageScanner()
                     scanner.setConfig(Symbol.NONE,ENABLE,0) // Disable all codes
@@ -104,7 +140,7 @@ class DecoderFragment : Fragment() {
                         Log.i("QR","QR detected")
                     }*/
                     totalFrames += 1
-                    frameImg.destroy()
+                    //frameImg.destroy()
                     //scanner.destroy()
 
                 }
