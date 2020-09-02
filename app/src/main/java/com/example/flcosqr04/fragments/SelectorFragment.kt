@@ -8,6 +8,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Bundle
 import android.util.Log
+import android.util.Range
 import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
@@ -31,17 +32,6 @@ import kotlinx.coroutines.delay
 class SelectorFragment : Fragment() {
 
     private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
-    //mainActivity = requireActivity() as MainActivity
-    //private var mainActivity = requireActivity() as MainActivity
-
-    /*override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        mainActivity = requireActivity() as MainActivity
-        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
-            Navigation.findNavController(requireActivity(),R.id.fragment_container)
-                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
-        }
-    }*/
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -76,33 +66,12 @@ class SelectorFragment : Fragment() {
                     Navigation.findNavController(requireActivity(), R.id.fragment_container)
                         .navigate(SelectorFragmentDirections.actionSelectorToCamera(
                             item.cameraId, item.size.width, item.size.height, item.fps,
-                            item.zoom))
+                            item.zoom, item.aeLow))//Modified by Miguel 02/09
                 }
             }
-            //Added by Miguel 01/09
-            /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
-
-                Navigation.findNavController(requireActivity(),R.id.fragment_container)
-                    .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
-            }*/
-        }
-        //Added by Miguel 01/09
-        /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
-
-            Navigation.findNavController(requireActivity(),R.id.fragment_container)
-                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
-        }*/
-    }
-/*
-    override fun onResume() {
-        super.onResume()
-        //Added by Miguel 01/09
-        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
-            Navigation.findNavController(requireActivity(),R.id.fragment_container)
-                .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
         }
     }
-*/
+
     companion object {
 
         private data class CameraInfo(
@@ -110,7 +79,8 @@ class SelectorFragment : Fragment() {
             val cameraId: String,
             val size: Size,
             val fps: Int,
-            val zoom: Rect) //Added by Miguel
+            val zoom: Rect, //Added by Miguel
+            val aeLow: Int) //Added by Miguel 02/09
 
         /** Converts a lens orientation enum into a human-readable string */
         private fun lensOrientationString(value: Int) = when(value) {
@@ -146,6 +116,10 @@ class SelectorFragment : Fragment() {
                 val w : Int
                 val h : Int
 
+                //Added by Mkiguel 02/09
+                //val ae : Int
+                val aeRange : Range<Int>
+
                 // Return cameras that support constrained high video capability
                 if (capabilities.contains(
                         CameraCharacteristics
@@ -159,14 +133,15 @@ class SelectorFragment : Fragment() {
                     height()
                     zoom = Rect(w*3/8,h*3/8,w*5/8,h*5/8)
                     //
+                    //Added by Miguel 02/09
+                    aeRange = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)!!
                     // For each camera, list its compatible sizes and FPS ranges
                     cameraConfig.highSpeedVideoSizes.forEach { size ->
                         cameraConfig.getHighSpeedVideoFpsRangesFor(size).forEach { fpsRange ->
                             val fps = fpsRange.upper
                             val info = CameraInfo(
-                                "$orientation ($id) $size $fps FPS", id, size, fps, zoom)
-                            //var h: Int
-                            //var w : Int
+                                "$orientation ($id) $size $fps FPS", id, size, fps, zoom,
+                                    aeRange.lower)
 
                             // Only report the highest FPS in the range, avoid duplicates
                             //if (!availableCameras.contains(info)) availableCameras.add(info)
@@ -188,6 +163,7 @@ class SelectorFragment : Fragment() {
 
                                 //zoom = Rect(w*3/8,h*3/8,w*5/8,h*5/8)
                                 Log.i("mact / Camera zoom:", zoom.toString() )
+                                Log.i("mact", "Camera AE Range min: ${aeRange.lower}")
                             }
                         }
                     }

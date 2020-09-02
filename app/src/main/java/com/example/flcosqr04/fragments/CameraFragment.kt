@@ -6,6 +6,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.graphics.Paint
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession
@@ -140,6 +141,8 @@ class CameraFragment : Fragment()  {
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(FPS_PREVIEW_ONLY, args.fps))
             //Added by Miguel
             set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
+            //Added by Miguel 02/09
+            set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
@@ -158,6 +161,10 @@ class CameraFragment : Fragment()  {
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(args.fps, args.fps))
             //Added by Miguel
             set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
+            //Added by Miguel 02/09
+            //set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO)
+            //set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON)
+            set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
@@ -388,28 +395,12 @@ class CameraFragment : Fragment()  {
                                     Intent.FLAG_ACTIVITY_CLEAR_TOP
                         })*/
 
-                        //Added by Miguel 19/08/2020
-                        //Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                         //   .navigate(CameraFragmentDirections.actionCameraToDecoder(outputFile.name))
-
                         // Finishes our current camera screen
                         recorded = true // Added by Miguel
                         mainActivity.video = "$outputFile" // Added by Miguel 28/08
                         delay(MainActivity.ANIMATION_SLOW_MILLIS)
-                        navController.popBackStack() //Commented by Miguel 27/08
+                        navController.popBackStack()
                         //Handler(Looper.getMainLooper()).post {} //Test 01/09
-
-                        //Added by Miguel 27/08
-                        /*try {
-                            camera.close()
-                        } catch (exc: Throwable) {
-                            Log.e(TAG, "Error closing camera", exc)
-                        }
-                        cameraThread.quitSafely()
-                        recorder.release()
-                        recorderSurface.release()
-                        Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                           .navigate(CameraFragmentDirections.actionCameraToDecoder("$outputFile")) */
                     }
                 }
             }
@@ -496,16 +487,6 @@ class CameraFragment : Fragment()  {
         cameraThread.quitSafely()
         recorder.release()
         recorderSurface.release()
-        //Added by Miguel 20/08
-        //Log.i("mact","CameraOnDestroy")
-        /*if (recorded) {
-            Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))
-        }*/
-        /*if (recorded) {
-            Navigation.findNavController(requireActivity(), R.id.fragment_container)
-                .navigate(CameraFragmentDirections.actionCameraToDecoder("$outputFile"))
-        }*/
     }
 
     companion object {

@@ -48,6 +48,9 @@
         <action
             android:id="@+id/action_cameraFragment_to_permissionsFragment"
             app:destination="@id/permissionsFragment" />
+        <argument
+            android:name="aeLow"
+            app:argType="integer" />
     </fragment>
     <fragment
         android:id="@+id/decoderFragment"
