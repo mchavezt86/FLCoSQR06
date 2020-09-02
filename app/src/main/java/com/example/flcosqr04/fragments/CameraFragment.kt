@@ -2,6 +2,7 @@ package com.example.flcosqr04.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
@@ -18,11 +19,13 @@ import android.media.MediaScannerConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.util.Log
 import android.util.Range
 import android.util.Size
 import android.view.*
 import android.webkit.MimeTypeMap
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.FileProvider
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
@@ -390,10 +393,11 @@ class CameraFragment : Fragment()  {
                          //   .navigate(CameraFragmentDirections.actionCameraToDecoder(outputFile.name))
 
                         // Finishes our current camera screen
-                        delay(MainActivity.ANIMATION_SLOW_MILLIS)
                         recorded = true // Added by Miguel
                         mainActivity.video = "$outputFile" // Added by Miguel 28/08
+                        delay(MainActivity.ANIMATION_SLOW_MILLIS)
                         navController.popBackStack() //Commented by Miguel 27/08
+                        //Handler(Looper.getMainLooper()).post {} //Test 01/09
 
                         //Added by Miguel 27/08
                         /*try {
@@ -480,7 +484,7 @@ class CameraFragment : Fragment()  {
             Log.e(TAG, "Error closing camera", exc)
         }
         //Added by Miguel 27/08
-        Log.i("mact","CameraOnStop")
+        //Log.i("mact","CameraOnStop")
         /*if (recorded) {
             Navigation.findNavController(requireActivity(), R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))
@@ -493,7 +497,7 @@ class CameraFragment : Fragment()  {
         recorder.release()
         recorderSurface.release()
         //Added by Miguel 20/08
-        Log.i("mact","CameraOnDestroy")
+        //Log.i("mact","CameraOnDestroy")
         /*if (recorded) {
             Navigation.findNavController(requireActivity(), R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))

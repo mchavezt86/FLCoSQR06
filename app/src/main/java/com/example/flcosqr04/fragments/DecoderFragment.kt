@@ -1,6 +1,7 @@
 package com.example.flcosqr04.fragments
 
 import android.content.Context
+import android.content.DialogInterface
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
@@ -10,6 +11,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.*
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.navigation.NavController
 import androidx.navigation.Navigation
@@ -65,7 +67,7 @@ class DecoderFragment : Fragment() {
     //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
     private val hints = Hashtable<DecodeHintType, Any>()
 
-    private fun decode(videoFile : String) : Int {
+    private suspend fun decode(videoFile : String) = withContext(Dispatchers.Default) {
         //var mainView = view.findViewById<TextView>(R.id.video_analyser)
         val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
         var frame : Frame? // Frame grabbed.
@@ -153,8 +155,10 @@ class DecoderFragment : Fragment() {
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
-        //mainView.text = textFrames.plus(totalFrames.toString())
-        return totalFrames
+        scope.launch(Dispatchers.Main){
+            mainView.text = textFrames.plus(totalFrames.toString())
+        }
+        //return@withContext totalFrames
     }
 
     override fun onCreateView(
@@ -165,7 +169,7 @@ class DecoderFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        mainView = view.findViewById<TextView>(R.id.video_analyser) //MainView
+        mainView = view.findViewById(R.id.video_analyser) //MainView
         mainView.text = getString(R.string.processing)
         //Added by Miguel 31/08
         //job = Job()
@@ -239,17 +243,29 @@ class DecoderFragment : Fragment() {
         mainActivity = requireActivity() as MainActivity
         mainActivity.video = "Test"
 
+
         /*val result = runBlocking(Dispatchers.Default){
             decode(args.videoname)
-        }
-        mainView.text = textFrames.plus(result.toString())*/
+        }*/
+        /*val result = scope.async {
+            decode(args.videoname)
+        }.toString()*/
 
-        scope.launch(Dispatchers.Main) {
+        /*mainView.text = textFrames.plus(
+            scope.async {
+            decode(args.videoname)
+        }.toString()
+        )*/
+
+        scope.async {
+            decode(args.videoname)}
+
+        /*scope.launch(Dispatchers.Main) {
             val x : Int = withContext(Dispatchers.Default){
                 decode(args.videoname)
             }
             mainView.text = textFrames.plus(x.toString())
-        }
+        }*/
     }
 
     //Added by Miguel 31/08
@@ -268,3 +284,21 @@ class DecoderFragment : Fragment() {
         private const val textFrames = "Number of frames: "
     }
 }
+/*
+//Added by Miguel 01/09
+val alertDialog: AlertDialog? = activity?.let {
+    val builder = AlertDialog.Builder(it)
+    builder.apply {
+        setPositiveButton(R.string.OK,
+            DialogInterface.OnClickListener { dialog, id ->
+                /*Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                    .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))*/
+            })
+        setMessage("Process will start soon...")
+        setTitle("Decoding")
+    }
+    // Set other dialog properties
+    // Create the AlertDialog
+    builder.create()
+}
+alertDialog?.show()*/

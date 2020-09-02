@@ -47,9 +47,7 @@
             app:argType="android.graphics.Rect" />
         <action
             android:id="@+id/action_cameraFragment_to_permissionsFragment"
-            app:destination="@id/permissionsFragment"
-            app:popUpTo="@id/cameraFragment"
-            app:popUpToInclusive="true" />
+            app:destination="@id/permissionsFragment" />
     </fragment>
     <fragment
         android:id="@+id/decoderFragment"

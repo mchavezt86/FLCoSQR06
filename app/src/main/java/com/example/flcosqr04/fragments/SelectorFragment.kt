@@ -2,6 +2,7 @@ package com.example.flcosqr04.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.DialogInterface
 import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -12,6 +13,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.navigation.Navigation
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -55,10 +57,10 @@ class SelectorFragment : Fragment() {
         Log.i("mact","Video string is: " + mainActivity.video)
         view as RecyclerView
         //Added by Miguel 28/08
-        /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
-        }*/
+        }
         view.apply {
             layoutManager = LinearLayoutManager(requireContext())
 
@@ -91,7 +93,7 @@ class SelectorFragment : Fragment() {
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
         }*/
     }
-
+/*
     override fun onResume() {
         super.onResume()
         //Added by Miguel 01/09
@@ -100,7 +102,7 @@ class SelectorFragment : Fragment() {
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
         }
     }
-
+*/
     companion object {
 
         private data class CameraInfo(
