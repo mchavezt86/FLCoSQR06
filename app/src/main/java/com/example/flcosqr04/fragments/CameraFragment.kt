@@ -177,7 +177,7 @@ class CameraFragment : Fragment()  {
     //Added by Miguel 20/08/2020: Avoids break of port/land when the camera is rotated.
     private var recorded: Boolean = false
     //Added by Miguel 28/08
-    private lateinit var mainActivity : MainActivity
+    //private lateinit var mainActivity : MainActivity
 
     /** Live data listener for changes in the device orientation relative to the camera */
     private lateinit var relativeOrientation: OrientationLiveData
@@ -196,8 +196,8 @@ class CameraFragment : Fragment()  {
 
         //Added by Miguel 28/08
         recorded = false
-        mainActivity = requireActivity() as MainActivity
-        mainActivity.video = "Test"
+        //mainActivity = requireActivity() as MainActivity
+        //mainActivity.video = "Test"
 
         viewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
@@ -397,10 +397,14 @@ class CameraFragment : Fragment()  {
 
                         // Finishes our current camera screen
                         recorded = true // Added by Miguel
-                        mainActivity.video = "$outputFile" // Added by Miguel 28/08
+                        //mainActivity.video = "$outputFile" // Added by Miguel 28/08
                         delay(MainActivity.ANIMATION_SLOW_MILLIS)
-                        navController.popBackStack()
-                        //Handler(Looper.getMainLooper()).post {} //Test 01/09
+                        //navController.popBackStack()
+                        Handler(Looper.getMainLooper()).post {
+                            Navigation.findNavController(requireActivity(),R.id.fragment_container)
+                                .navigate(CameraFragmentDirections.actionCameraToDecoder(
+                                    "$outputFile"))
+                        } //Test 01/09
                     }
                 }
             }

@@ -10,9 +10,6 @@
         <action
             android:id="@+id/action_selector_to_camera"
             app:destination="@id/cameraFragment" />
-        <action
-            android:id="@+id/action_selector_to_decoder"
-            app:destination="@id/decoderFragment" />
     </fragment>
     <fragment
         android:id="@+id/permissionsFragment"
@@ -51,6 +48,9 @@
         <argument
             android:name="aeLow"
             app:argType="integer" />
+        <action
+            android:id="@+id/action_camera_to_decoder"
+            app:destination="@id/decoderFragment" />
     </fragment>
     <fragment
         android:id="@+id/decoderFragment"
@@ -60,7 +60,7 @@
             android:name="videoname"
             app:argType="string" />
         <action
-            android:id="@+id/action_decoderFragment_to_permissionsFragment"
+            android:id="@+id/action_decoder_to_permissions"
             app:destination="@id/permissionsFragment" />
     </fragment>
 </navigation>

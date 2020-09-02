@@ -9,7 +9,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var container: FrameLayout /*Main frame of the layout, which is a container of
     other Fragments. In the layout is defined as a FragmentContainerView */
-    var video: String = "Test" //Added by Miguel 28/08
+    //var video: String = "Test" //Added by Miguel 28/08
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

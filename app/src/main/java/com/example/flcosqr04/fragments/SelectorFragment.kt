@@ -31,7 +31,7 @@ import kotlinx.coroutines.delay
 
 class SelectorFragment : Fragment() {
 
-    private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
+    //private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -43,14 +43,14 @@ class SelectorFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         //Added by Miguel 28/08
-        mainActivity = requireActivity() as MainActivity
-        Log.i("mact","Video string is: " + mainActivity.video)
+        //mainActivity = requireActivity() as MainActivity
+        //Log.i("mact","Video string is: " + mainActivity.video)
         view as RecyclerView
         //Added by Miguel 28/08
-        if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
+        /*if (mainActivity.video.compareTo("Test")!=0){ //Added by Miguel 28/08. May change to check if empty
             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))
-        }
+        }*/
         view.apply {
             layoutManager = LinearLayoutManager(requireContext())
 
