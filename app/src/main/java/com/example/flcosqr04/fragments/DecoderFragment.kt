@@ -152,8 +152,8 @@ class DecoderFragment : Fragment() {
         mainView = view.findViewById(R.id.video_analyser) //MainView
         mainView.text = getString(R.string.processing)
 
-        mainActivity = requireActivity() as MainActivity
-        mainActivity.video = "Test"
+        //mainActivity = requireActivity() as MainActivity
+        //mainActivity.video = "Test"
 
         scope.async {
             decode(args.videoname)}
