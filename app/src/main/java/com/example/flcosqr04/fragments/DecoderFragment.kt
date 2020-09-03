@@ -10,6 +10,7 @@ import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
 import android.view.*
+import android.widget.Button
 import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
@@ -52,10 +53,15 @@ import java.util.*
 class DecoderFragment : Fragment() {
     /** AndroidX navigation arguments */
     private val args: DecoderFragmentArgs by navArgs()
-    private lateinit var mainView : TextView
+    //Variables
+    private lateinit var videoproc : TextView
+    private lateinit var runtime : TextView
+    private lateinit var totalframes : TextView
+    private lateinit var processButton: Button
     private lateinit var frameImg : Image
 
-    private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
+    private val qrReader = QRCodeReader()
+    //private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
 
     //Added by Miguel 31/08
     private var job = Job()
@@ -76,11 +82,13 @@ class DecoderFragment : Fragment() {
         var binbitmap : BinaryBitmap
 
         //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
-        hints[DecodeHintType.CHARACTER_SET] = "utf-8"
+        /*hints[DecodeHintType.CHARACTER_SET] = "utf-8"
         hints[DecodeHintType.TRY_HARDER] = true
-        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
+        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE*/
 
-        val qrReader = QRCodeReader()
+        //val qrReader = QRCodeReader()
+        //Attempt to get execution time
+        val starTime = System.currentTimeMillis()
 
         try {//Start FrameGrabber
             //frameG.format = "mp4"
@@ -96,7 +104,7 @@ class DecoderFragment : Fragment() {
                 frameMat.release()
                 //frameImg.destroy()
                 if (frame != null){
-                    Log.i("javacv","Frame grabbed")
+                    //Log.i("javacv","Frame grabbed")
                     frameMat = converterToMat.convert(frame) //Frame to Mat
                     cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
                     //Conversion to Bitmap
@@ -124,8 +132,13 @@ class DecoderFragment : Fragment() {
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
+        var endTime = System.currentTimeMillis()
         scope.launch(Dispatchers.Main){
-            mainView.text = textFrames.plus(totalFrames.toString())
+            //videoproc.text = textFrames.plus(totalFrames.toString())
+            totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
+            runtime.text = getString(R.string.runtime).plus("${endTime-starTime} ms")
+            videoproc.visibility = View.INVISIBLE
+            processButton.isEnabled = true
         }
         //return@withContext totalFrames
     }
@@ -149,14 +162,31 @@ class DecoderFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        mainView = view.findViewById(R.id.video_analyser) //MainView
-        mainView.text = getString(R.string.processing)
+        videoproc = view.findViewById(R.id.video_analyser) //Processing...
+        runtime = view.findViewById(R.id.run_time) //Run time:
+        totalframes = view.findViewById(R.id.total_frames) //Total frames:
+        //mainView.text = getString(R.string.processing)
+
+        processButton = view.findViewById(R.id.process_button)
+        processButton.setOnClickListener(){
+            processButton.isEnabled = false
+            videoproc.visibility = View.VISIBLE
+            runtime.text = getString(R.string.runtime)
+            totalframes.text = getString(R.string.totalframes)
+            scope.async {
+                decode(args.videoname)}
+        }
+
+        //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
+        hints[DecodeHintType.CHARACTER_SET] = "utf-8"
+        hints[DecodeHintType.TRY_HARDER] = true
+        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
 
         //mainActivity = requireActivity() as MainActivity
         //mainActivity.video = "Test"
 
-        scope.async {
-            decode(args.videoname)}
+        //scope.async {
+        //    decode(args.videoname)}
 
         /*scope.launch(Dispatchers.Main) {
             val x : Int = withContext(Dispatchers.Default){
