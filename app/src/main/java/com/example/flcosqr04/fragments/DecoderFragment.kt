@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.util.Log
 import android.view.*
 import android.widget.Button
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
@@ -47,8 +49,10 @@ import kotlin.system.*
 import com.google.zxing.qrcode.QRCodeReader
 import com.google.zxing.qrcode.detector.*
 import com.google.zxing.qrcode.decoder.*
-import java.lang.Exception
 import java.util.*
+import kotlin.Exception
+import kotlin.reflect.typeOf
+
 
 class DecoderFragment : Fragment() {
     /** AndroidX navigation arguments */
@@ -59,6 +63,7 @@ class DecoderFragment : Fragment() {
     private lateinit var totalframes : TextView
     private lateinit var processButton: Button
     private lateinit var frameImg : Image
+    private var radio = 0
 
     private val qrReader = QRCodeReader()
     //private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
@@ -74,12 +79,14 @@ class DecoderFragment : Fragment() {
         val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
         var frame : Frame? // Frame grabbed.
         var frameMat = Mat() // Frame in Mat format.
-        var matGray = Mat()// Frame converted to Grayscale
+        var matGray = Mat()// Frame converted to grayscale
+        var matNeg = Mat() // Negative grayscale image
         var frameProc : Frame //Frame processed
         var totalFrames = 0
         var result : Result // Results of the QR scanner
         var bitmap : Bitmap
         var binbitmap : BinaryBitmap
+        var noQR = false
 
         //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
         /*hints[DecodeHintType.CHARACTER_SET] = "utf-8"
@@ -113,14 +120,44 @@ class DecoderFragment : Fragment() {
                     //Int Array for bitmap
                     var intData : IntArray = IntArray(bitmap.width * bitmap.height)
                     bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+                    //Zxing binarizer required.
                     binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
                     bitmap.height,intData)))
+
+                    //First attempt to read a QR using gray image
                     try {
                         result = qrReader.decode(binbitmap,hints)
                         Log.i("QR Reader", result.text)
-                    } catch (e : Exception){
+                    } catch (e : NotFoundException){
+                        noQR = true
+                    }catch (e : Exception){
                         Log.e("QR Reader", "Reader error: $e")
                     }
+
+                    //Second attempt to read using the negative of the gray if the previous attempt
+                    //failed and the radio is selected.
+                    if (noQR && radio > 1) {
+                        matNeg.release()
+                        bitwise_not(matGray,matNeg)
+                        //Conversion to Bitmap
+                        frame = converterToMat.convert(matNeg)
+                        bitmap = converterAndroid.convert(frame)
+                        //Int Array for bitmap
+                        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+                        //Zxing binarizer required.
+                        binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+                            bitmap.height,intData)))
+
+                        try {
+                            result = qrReader.decode(binbitmap,hints)
+                            Log.i("QR Reader (neg)", result.text)
+                        } catch (e : NotFoundException){
+                            noQR = true
+                        }catch (e : Exception){
+                            Log.e("QR Reader", "Reader error: $e")
+                        }
+                    }
+
                     totalFrames += 1
                 }
             } catch (e : FrameGrabber.Exception){
@@ -173,6 +210,12 @@ class DecoderFragment : Fragment() {
             videoproc.visibility = View.VISIBLE
             runtime.text = getString(R.string.runtime)
             totalframes.text = getString(R.string.totalframes)
+            //radio = view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId
+            when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
+                R.id.no_dsp -> radio = 1
+                R.id.use_neg -> radio = 2
+            }
+            Log.i("mact","RadioID = $radio")
             scope.async {
                 decode(args.videoname)}
         }
@@ -206,7 +249,7 @@ class DecoderFragment : Fragment() {
 
         private val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         private val converterAndroid : AndroidFrameConverter = AndroidFrameConverter()
-        private const val textFrames = "Number of frames: "
+        //private const val textFrames = "Number of frames: "
     }
 }
 /*

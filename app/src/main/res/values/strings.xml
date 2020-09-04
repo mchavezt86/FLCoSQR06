@@ -6,6 +6,7 @@
     <string name="processing">Processing…</string>
     <string name="OK">OK</string>
     <string name="noimgproc">No image processing</string>
+    <string name="useneg">Use negative</string>
     <string name="runtime">Run time: </string>
     <string name="process">Process</string>
     <string name="totalframes">Total frames: </string>

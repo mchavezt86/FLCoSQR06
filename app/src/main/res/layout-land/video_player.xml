@@ -28,10 +28,11 @@
     <RadioGroup
         android:id="@+id/dsp_selection"
         android:layout_width="0dp"
-        android:layout_height="83dp"
+        android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
         android:layout_marginTop="20dp"
         android:layout_marginEnd="10dp"
+        android:checkedButton="@id/no_dsp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/video_analyser"
         app:layout_constraintHorizontal_bias="0.0"
@@ -45,6 +46,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/noimgproc" />
+
+        <RadioButton
+            android:id="@+id/use_neg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/useneg" />
     </RadioGroup>
 
     <TextView
@@ -69,11 +76,11 @@
         app:layout_constraintEnd_toEndOf="@+id/video_analyser"
         app:layout_constraintHorizontal_bias="0.525"
         app:layout_constraintStart_toStartOf="@+id/video_analyser"
-        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintTop_toBottomOf="@+id/total_frames"
         app:layout_constraintVertical_bias="0.0" />
 
     <TextView
-        android:id="@+id/textView"
+        android:id="@+id/total_frames"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:padding="10dp"
