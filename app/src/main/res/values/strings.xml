@@ -6,8 +6,10 @@
     <string name="processing">Processing…</string>
     <string name="OK">OK</string>
     <string name="noimgproc">No image processing</string>
-    <string name="useneg">Use negative</string>
+    <string name="useneg">Use negative image</string>
+    <string name="eqpos">Use equalised image</string>
+    <string name="eqneg">Use equalised negative image</string>
     <string name="runtime">Run time: </string>
-    <string name="process">Process</string>
     <string name="totalframes">Total frames: </string>
+    <string name="process">Process</string>
 </resources>

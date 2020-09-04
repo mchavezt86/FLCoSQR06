@@ -52,6 +52,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/useneg" />
+
+        <RadioButton
+            android:id="@+id/use_eqpos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/eqpos" />
+
+        <RadioButton
+            android:id="@+id/use_eqneg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/eqneg" />
     </RadioGroup>
 
     <TextView

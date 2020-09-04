@@ -81,6 +81,8 @@ class DecoderFragment : Fragment() {
         var frameMat = Mat() // Frame in Mat format.
         var matGray = Mat()// Frame converted to grayscale
         var matNeg = Mat() // Negative grayscale image
+        var matEqP = Mat() // Equalised grayscale image
+        var matEqN = Mat() // Equalised negative image
         var frameProc : Frame //Frame processed
         var totalFrames = 0
         var result : Result // Results of the QR scanner
@@ -158,6 +160,54 @@ class DecoderFragment : Fragment() {
                         }
                     }
 
+                    //Third attempt to read using the equalisation of the gray if the previous attempt
+                    //failed and the radio is selected.
+                    if (noQR && radio > 2) {
+                        matEqP.release()
+                        equalizeHist(matGray,matEqP)
+                        //Conversion to Bitmap
+                        frame = converterToMat.convert(matEqP)
+                        bitmap = converterAndroid.convert(frame)
+                        //Int Array for bitmap
+                        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+                        //Zxing binarizer required.
+                        binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+                            bitmap.height,intData)))
+
+                        try {
+                            result = qrReader.decode(binbitmap,hints)
+                            Log.i("QR Reader (equalised)", result.text)
+                        } catch (e : NotFoundException){
+                            noQR = true
+                        }catch (e : Exception){
+                            Log.e("QR Reader", "Reader error: $e")
+                        }
+                    }
+
+                    //Fourth attempt to read using the equalisation of the negative if the previous
+                    //attempt failed and the radio is selected.
+                    if (noQR && radio > 3) {
+                        matEqN.release()
+                        equalizeHist(matNeg,matEqN)
+                        //Conversion to Bitmap
+                        frame = converterToMat.convert(matEqN)
+                        bitmap = converterAndroid.convert(frame)
+                        //Int Array for bitmap
+                        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+                        //Zxing binarizer required.
+                        binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+                            bitmap.height,intData)))
+
+                        try {
+                            result = qrReader.decode(binbitmap,hints)
+                            Log.i("QR Reader (equal. neg.)", result.text)
+                        } catch (e : NotFoundException){
+                            noQR = true
+                        }catch (e : Exception){
+                            Log.e("QR Reader", "Reader error: $e")
+                        }
+                    }
+
                     totalFrames += 1
                 }
             } catch (e : FrameGrabber.Exception){
@@ -202,20 +252,23 @@ class DecoderFragment : Fragment() {
         videoproc = view.findViewById(R.id.video_analyser) //Processing...
         runtime = view.findViewById(R.id.run_time) //Run time:
         totalframes = view.findViewById(R.id.total_frames) //Total frames:
-        //mainView.text = getString(R.string.processing)
 
+        //Button to start processing
         processButton = view.findViewById(R.id.process_button)
-        processButton.setOnClickListener(){
+        processButton.setOnClickListener(){//Button click listener sets some variables
             processButton.isEnabled = false
             videoproc.visibility = View.VISIBLE
             runtime.text = getString(R.string.runtime)
             totalframes.text = getString(R.string.totalframes)
-            //radio = view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId
+
+            //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
                 R.id.no_dsp -> radio = 1
                 R.id.use_neg -> radio = 2
+                R.id.use_eqpos -> radio = 3
+                R.id.use_eqneg -> radio = 4
             }
-            Log.i("mact","RadioID = $radio")
+            //Log.i("mact","RadioID = $radio")
             scope.async {
                 decode(args.videoname)}
         }
