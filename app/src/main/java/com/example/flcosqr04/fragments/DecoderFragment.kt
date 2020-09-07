@@ -57,25 +57,30 @@ import kotlin.reflect.typeOf
 class DecoderFragment : Fragment() {
     /** AndroidX navigation arguments */
     private val args: DecoderFragmentArgs by navArgs()
-    //Variables
+    //Variables which represent the layout elements.
     private lateinit var videoproc : TextView
     private lateinit var runtime : TextView
     private lateinit var totalframes : TextView
     private lateinit var processButton: Button
-    private lateinit var frameImg : Image
+    //private lateinit var frameImg : Image
+    //Radio button value.
     private var radio = 0
 
+    //Zxing QR reader and hints for its configuration
     private val qrReader = QRCodeReader()
-    //private lateinit var mainActivity : MainActivity //Added by Miguel 28/08
+    private val hints = Hashtable<DecodeHintType, Any>()
 
     //Added by Miguel 31/08
     private var job = Job()
     private val scope = CoroutineScope(job + Dispatchers.Main)
 
-    //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
-    private val hints = Hashtable<DecodeHintType, Any>()
-
+    /*Function to decode sequence by grabbing frame by frame from a video file using the FFmpeg
+    * package. Then, using JavaCV's OpenCV package, the frames are image-processed before calling
+    * the QR decoder from the Zxing package
+    * Input: String : video file path and name
+    * Output: None : QR results are printed in the console */
     private suspend fun decode(videoFile : String) = withContext(Dispatchers.Default) {
+        //Variables to hold Frame and Mat values.
         val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
         var frame : Frame? // Frame grabbed.
         var frameMat = Mat() // Frame in Mat format.
@@ -84,23 +89,14 @@ class DecoderFragment : Fragment() {
         var matEqP = Mat() // Equalised grayscale image
         var matEqN = Mat() // Equalised negative image
         var frameProc : Frame //Frame processed
+        //Variables for total frame count and check if a QR is detected
         var totalFrames = 0
-        var result : Result // Results of the QR scanner
-        var bitmap : Bitmap
-        var binbitmap : BinaryBitmap
-        var noQR = false
+        var noQR : Boolean
 
-        //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
-        /*hints[DecodeHintType.CHARACTER_SET] = "utf-8"
-        hints[DecodeHintType.TRY_HARDER] = true
-        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE*/
-
-        //val qrReader = QRCodeReader()
-        //Attempt to get execution time
+        //Start of execution time
         val starTime = System.currentTimeMillis()
 
         try {//Start FrameGrabber
-            //frameG.format = "mp4"
             frameG.start()
         } catch (e : FrameGrabber.Exception) {
             Log.e("javacv", "Failed to start FrameGrabber: $e")
@@ -116,97 +112,40 @@ class DecoderFragment : Fragment() {
                     //Log.i("javacv","Frame grabbed")
                     frameMat = converterToMat.convert(frame) //Frame to Mat
                     cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
-                    //Conversion to Bitmap
-                    frame = converterToMat.convert(matGray)
-                    bitmap = converterAndroid.convert(frame)
-                    //Int Array for bitmap
-                    var intData : IntArray = IntArray(bitmap.width * bitmap.height)
-                    bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-                    //Zxing binarizer required.
-                    binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
-                    bitmap.height,intData)))
+                    Log.i("mact","Mat size: (${matGray.size().width()},${matGray.size().height()})")
 
-                    //First attempt to read a QR using gray image
-                    try {
-                        result = qrReader.decode(binbitmap,hints)
-                        Log.i("QR Reader", result.text)
-                    } catch (e : NotFoundException){
-                        noQR = true
-                    }catch (e : Exception){
-                        Log.e("QR Reader", "Reader error: $e")
-                    }
-
-                    //Second attempt to read using the negative of the gray if the previous attempt
-                    //failed and the radio is selected.
+                    /*Main logic:
+                    * If no QR is detected, the code will continue to try to detect QRs according to
+                    * user selection of the radio button*/
+                    //First detection attempt using grayscale image.
+                    noQR = decodeQR(matGray)
+                    if (!noQR) Log.i("QR Reader","Detected by gray")
+                    //Second detection attempt using negative image.
                     if (noQR && radio > 1) {
                         matNeg.release()
                         bitwise_not(matGray,matNeg)
-                        //Conversion to Bitmap
-                        frame = converterToMat.convert(matNeg)
-                        bitmap = converterAndroid.convert(frame)
-                        //Int Array for bitmap
-                        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-                        //Zxing binarizer required.
-                        binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
-                            bitmap.height,intData)))
-
-                        try {
-                            result = qrReader.decode(binbitmap,hints)
-                            Log.i("QR Reader (neg)", result.text)
-                        } catch (e : NotFoundException){
-                            noQR = true
-                        }catch (e : Exception){
-                            Log.e("QR Reader", "Reader error: $e")
-                        }
+                        noQR = decodeQR(matNeg)
+                        if (!noQR) Log.i("QR Reader","Detected by negative")
                     }
 
-                    //Third attempt to read using the equalisation of the gray if the previous attempt
-                    //failed and the radio is selected.
+                    //Third attempt using grayscale equalised image.
                     if (noQR && radio > 2) {
                         matEqP.release()
                         equalizeHist(matGray,matEqP)
-                        //Conversion to Bitmap
-                        frame = converterToMat.convert(matEqP)
-                        bitmap = converterAndroid.convert(frame)
-                        //Int Array for bitmap
-                        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-                        //Zxing binarizer required.
-                        binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
-                            bitmap.height,intData)))
-
-                        try {
-                            result = qrReader.decode(binbitmap,hints)
-                            Log.i("QR Reader (equalised)", result.text)
-                        } catch (e : NotFoundException){
-                            noQR = true
-                        }catch (e : Exception){
-                            Log.e("QR Reader", "Reader error: $e")
-                        }
+                        noQR = decodeQR(matEqP)
+                        if (!noQR) Log.i("QR Reader","Detected by equalised gray")
                     }
 
-                    //Fourth attempt to read using the equalisation of the negative if the previous
-                    //attempt failed and the radio is selected.
+                    //Fourth attempt using negative equalised image.
                     if (noQR && radio > 3) {
                         matEqN.release()
-                        equalizeHist(matNeg,matEqN)
-                        //Conversion to Bitmap
-                        frame = converterToMat.convert(matEqN)
-                        bitmap = converterAndroid.convert(frame)
-                        //Int Array for bitmap
-                        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-                        //Zxing binarizer required.
-                        binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
-                            bitmap.height,intData)))
-
-                        try {
-                            result = qrReader.decode(binbitmap,hints)
-                            Log.i("QR Reader (equal. neg.)", result.text)
-                        } catch (e : NotFoundException){
-                            noQR = true
-                        }catch (e : Exception){
-                            Log.e("QR Reader", "Reader error: $e")
-                        }
+                        equalizeHist(matNeg, matEqN)
+                        noQR = decodeQR(matEqN)
+                        if (!noQR) Log.i("QR Reader","Detected by equalised neg")
                     }
+
+                    //Print message if nothing detected
+                    if(noQR) Log.i("QR Reader","No QR detected")
 
                     totalFrames += 1
                 }
@@ -219,7 +158,9 @@ class DecoderFragment : Fragment() {
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
+        //End of execution time.
         var endTime = System.currentTimeMillis()
+
         scope.launch(Dispatchers.Main){
             //videoproc.text = textFrames.plus(totalFrames.toString())
             totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
@@ -227,7 +168,35 @@ class DecoderFragment : Fragment() {
             videoproc.visibility = View.INVISIBLE
             processButton.isEnabled = true
         }
-        //return@withContext totalFrames
+    }
+
+    /*Function to decode QR based on a OpenCV Mat
+    * Input: OpenCV Mat()
+    * Output: Booolean: true if success in detection, false otherwise
+    * Note: runs in the Default Thread, not Main. Called from the decode() function*/
+    private suspend fun decodeQR(gray: Mat) : Boolean = withContext(Dispatchers.Default) {
+        //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
+        val frame = converterToMat.convert(gray)
+        val bitmap = converterAndroid.convert(frame)
+        val intData = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+        val binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+            bitmap.height,intData)))
+        //Store result of QR detection
+        val result : Result
+        //Initialise as "no QR detected"
+        var noQR = false
+
+        try { //Detect QR and print result
+            result = qrReader.decode(binbitmap,hints)
+            Log.i("QR Reader)", result.text)
+        } catch (e : NotFoundException){
+            noQR = true //If not found, return true.
+        }catch (e : Exception){
+            Log.e("QR Reader", "Reader error: $e")
+            noQR = true //If not found, return true.
+        }
+        return@withContext noQR
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -253,6 +222,11 @@ class DecoderFragment : Fragment() {
         runtime = view.findViewById(R.id.run_time) //Run time:
         totalframes = view.findViewById(R.id.total_frames) //Total frames:
 
+        //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
+        hints[DecodeHintType.CHARACTER_SET] = "utf-8"
+        hints[DecodeHintType.TRY_HARDER] = true
+        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
+
         //Button to start processing
         processButton = view.findViewById(R.id.process_button)
         processButton.setOnClickListener(){//Button click listener sets some variables
@@ -272,24 +246,6 @@ class DecoderFragment : Fragment() {
             scope.async {
                 decode(args.videoname)}
         }
-
-        //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
-        hints[DecodeHintType.CHARACTER_SET] = "utf-8"
-        hints[DecodeHintType.TRY_HARDER] = true
-        hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
-
-        //mainActivity = requireActivity() as MainActivity
-        //mainActivity.video = "Test"
-
-        //scope.async {
-        //    decode(args.videoname)}
-
-        /*scope.launch(Dispatchers.Main) {
-            val x : Int = withContext(Dispatchers.Default){
-                decode(args.videoname)
-            }
-            mainView.text = textFrames.plus(x.toString())
-        }*/
     }
 
     //Added by Miguel 31/08
@@ -299,10 +255,8 @@ class DecoderFragment : Fragment() {
     }
 
     companion object {
-
         private val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         private val converterAndroid : AndroidFrameConverter = AndroidFrameConverter()
-        //private const val textFrames = "Number of frames: "
     }
 }
 /*
