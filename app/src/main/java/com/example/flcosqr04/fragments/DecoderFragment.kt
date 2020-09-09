@@ -1,57 +1,30 @@
 package com.example.flcosqr04.fragments
 
-import android.content.Context
-import android.content.DialogInterface
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
-import android.graphics.ImageFormat
-import android.graphics.SurfaceTexture
-import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
 import android.view.*
 import android.widget.Button
-import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.addCallback
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
-import com.example.flcosqr04.MainActivity
 import com.example.flcosqr04.R
 import com.google.zxing.*
+import com.google.zxing.common.DetectorResult
 import com.google.zxing.common.HybridBinarizer
-import kotlinx.coroutines.delay
-import net.sourceforge.zbar.*
-import org.opencv.android.BaseLoaderCallback
-import org.opencv.android.LoaderCallbackInterface
-import org.opencv.android.OpenCVLoader
-import org.opencv.android.Utils
-//import org.opencv.core.Mat
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
 import org.bytedeco.javacv.*
 import org.bytedeco.javacv.OpenCVFrameConverter
 import org.bytedeco.opencv.opencv_core.*
-import org.bytedeco.opencv.opencv_imgproc.*
 import org.bytedeco.opencv.global.opencv_core.*
 import org.bytedeco.opencv.global.opencv_imgproc.*
-import org.bytedeco.ffmpeg.avformat.*
-import org.bytedeco.ffmpeg.global.avformat.*
-import net.sourceforge.zbar.Config.*
 import kotlinx.coroutines.*
-import kotlin.concurrent.thread
-import kotlin.system.*
 import com.google.zxing.qrcode.QRCodeReader
 import com.google.zxing.qrcode.detector.*
-import com.google.zxing.qrcode.decoder.*
 import java.util.*
 import kotlin.Exception
-import kotlin.reflect.typeOf
 
 
 class DecoderFragment : Fragment() {
@@ -62,9 +35,12 @@ class DecoderFragment : Fragment() {
     private lateinit var runtime : TextView
     private lateinit var totalframes : TextView
     private lateinit var processButton: Button
-    //private lateinit var frameImg : Image
-    //Radio button value.
+    //Radio button value.`
     private var radio = 0
+    //Variables to get the area which contains only the QR
+    //private lateinit var rOI : Array<ResultPoint>
+    private val crop : IntArray = IntArray(size = 6) /*[w:width,h:height,x:left coordinate,y:top
+    coordinate,imgw:width of the original image,imgh:height of the original image]*/
 
     //Zxing QR reader and hints for its configuration
     private val qrReader = QRCodeReader()
@@ -80,39 +56,56 @@ class DecoderFragment : Fragment() {
     * Input: String : video file path and name
     * Output: None : QR results are printed in the console */
     private suspend fun decode(videoFile : String) = withContext(Dispatchers.Default) {
-        //Variables to hold Frame and Mat values.
-        val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
-        var frame : Frame? // Frame grabbed.
+        //Variables to get frames: FrameGrabber, FFmpegFrameFilter, Frame
+        val frameG = FFmpegFrameGrabber(videoFile)
+        /*val frameF = FFmpegFrameFilter("format=pix_fmts=bgr24, crop=w=${crop[0]}:h=${crop[1]}:x=${crop[2]}:y=${crop[3]}","",
+            crop[4],crop[5],0)
+        frameF.pixelFormat = frameG.pixelFormat
+        var preFrame : Frame?*/
+        var frame : Frame?
+        //Variables for the OpenCV Mat
         var frameMat = Mat() // Frame in Mat format.
         var matGray = Mat()// Frame converted to grayscale
         var matNeg = Mat() // Negative grayscale image
         var matEqP = Mat() // Equalised grayscale image
         var matEqN = Mat() // Equalised negative image
         var frameProc : Frame //Frame processed
+        //Variable for the region of interest (ROI)
         //Variables for total frame count and check if a QR is detected
         var totalFrames = 0
         var noQR : Boolean
+        //Array of ResultPoints for detect the ROI (x,y,w,h)
+        val roi = Rect(crop[2],crop[3]-crop[1],crop[0],crop[1])
+        /*rOI = arrayOf(ResultPoint(0.0F, 0.0F), ResultPoint(0.0F, 0.0F),
+            ResultPoint(0.0F, 0.0F))*/
+        //IntArray(size = 4).copyInto(crop)
 
         //Start of execution time
         val starTime = System.currentTimeMillis()
 
         try {//Start FrameGrabber
             frameG.start()
+            //frameF.start()
         } catch (e : FrameGrabber.Exception) {
             Log.e("javacv", "Failed to start FrameGrabber: $e")
-        }
+        } /*catch (e : FrameFilter.Exception){
+            Log.e("javacv", "Failed to start FrameFilter: $e")
+        }*/
         frame = null
         do {//Loop to grab all frames
             try {
                 frame = frameG.grabFrame()
+                //Clear variables.
                 matGray.release()
                 frameMat.release()
-                //frameImg.destroy()
                 if (frame != null){
                     //Log.i("javacv","Frame grabbed")
-                    frameMat = converterToMat.convert(frame) //Frame to Mat
+
+                    //Conversions
+                    //frameMat = converterToMat.convert(frame) //Frame to Mat
+                    frameMat = Mat(converterToMat.convert(frame),roi) //Frame to Mat with ROI
                     cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
-                    Log.i("mact","Mat size: (${matGray.size().width()},${matGray.size().height()})")
+                    //Log.i("mact","Mat size: (${matGray.size().width()},${matGray.size().height()})")
 
                     /*Main logic:
                     * If no QR is detected, the code will continue to try to detect QRs according to
@@ -120,6 +113,7 @@ class DecoderFragment : Fragment() {
                     //First detection attempt using grayscale image.
                     noQR = decodeQR(matGray)
                     if (!noQR) Log.i("QR Reader","Detected by gray")
+
                     //Second detection attempt using negative image.
                     if (noQR && radio > 1) {
                         matNeg.release()
@@ -151,15 +145,18 @@ class DecoderFragment : Fragment() {
                 }
             } catch (e : FrameGrabber.Exception){
                 Log.e("javacv", "Failed to grab frame: $e")
+            } catch (e: FrameFilter.Exception){
+                Log.e("javacv", "Failed to grab filtered frame: $e")
             }
-        } while (frame != null)
+        } while (frame != null) //preFrame
         try {//Stop FrameGrabber
+            //frameF.stop()
             frameG.stop()
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
         //End of execution time.
-        var endTime = System.currentTimeMillis()
+        val endTime = System.currentTimeMillis()
 
         scope.launch(Dispatchers.Main){
             //videoproc.text = textFrames.plus(totalFrames.toString())
@@ -180,7 +177,7 @@ class DecoderFragment : Fragment() {
         val bitmap = converterAndroid.convert(frame)
         val intData = IntArray(bitmap.width * bitmap.height)
         bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-        val binbitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+        val binBitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
             bitmap.height,intData)))
         //Store result of QR detection
         val result : Result
@@ -188,8 +185,8 @@ class DecoderFragment : Fragment() {
         var noQR = false
 
         try { //Detect QR and print result
-            result = qrReader.decode(binbitmap,hints)
-            Log.i("QR Reader)", result.text)
+            result = qrReader.decode(binBitmap,hints)
+            Log.i("QR Reader", result.text)
         } catch (e : NotFoundException){
             noQR = true //If not found, return true.
         }catch (e : Exception){
@@ -197,6 +194,87 @@ class DecoderFragment : Fragment() {
             noQR = true //If not found, return true.
         }
         return@withContext noQR
+    }
+
+    /*Function to detect the QR and save its coordinates. Uses de Zxing module to detect any QR in
+    * The video but does not decode it.
+    * Input: String : video file path and name
+    * Output: Boolean : true if detected, false if not.
+    * Modifies the global variable coordinates[] */
+    private suspend fun detect(videoFile: String) : Boolean = withContext(Dispatchers.Default) {
+        //Variables to hold Frame and Mat values.
+        val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
+        var frame : Frame? // Frame grabbed.
+        var bitmap : Bitmap
+        var result : DetectorResult
+        var detected = false
+
+        try {//Start FrameGrabber
+            frameG.start()
+        } catch (e : FrameGrabber.Exception) {
+            Log.e("javacv", "Failed to start FrameGrabber: $e")
+        }
+        frame = null
+
+        do {
+            frame = frameG.grabFrame()
+            bitmap = converterAndroid.convert(frame)
+            val intData = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
+            val binMatrix = HybridBinarizer(RGBLuminanceSource(bitmap.width,
+                bitmap.height,intData)).blackMatrix
+            val qrDetector = Detector(binMatrix)
+            try {
+                result = qrDetector.detect(hints)
+                getCrop(result.points)
+                crop[4] = bitmap.width
+                crop[5] = bitmap.height
+                detected = true
+                Log.i("QR Detector","Result size = ${result.points.size}")
+                break
+            } catch (e : NotFoundException){
+                Log.i("QR Detector","No QR detected")
+            }
+        } while (frame != null)
+        try {//Stop FrameGrabber
+            frameG.stop()
+        } catch (e : FrameGrabber.Exception){
+            Log.e("javacv", "Failed to stop FrameGrabber: $e")
+        }
+        return@withContext detected
+    }
+
+    /*Function to calculate the crop parameters for the Frame
+    * Input: ResultPoint[] (the QR has only 3 ResultPoints)
+    * Output: None
+    * Modifies the global variable crop[]*/
+    private suspend fun getCrop(r : Array<ResultPoint>) = withContext(Dispatchers.Default) {
+        /*val xmin = minOf(r[0].x,r[1].x,r[2].x)
+        val xmax = maxOf(r[0].x,r[1].x,r[2].x)
+        val ymin = minOf(r[0].y,r[1].y,r[2].y)
+        val ymax = maxOf(r[0].y,r[1].y,r[2].y)*/
+
+        var xMin = r[0].x
+        var xMax = r[0].x
+        var yMin = r[0].y
+        var yMax = r[0].y
+
+        r.forEach {
+            Log.i("Crop","(${it.x},${it.y})")
+            if (xMin > it.x) xMin = it.x
+            if (xMax < it.x) xMax = it.x
+            if (yMin > it.y) yMin = it.y
+            if (yMax < it.y) yMax = it.y
+        }
+
+        val d = maxOf(xMax-xMin,yMax-yMin )
+
+        crop[0] = (1.6 * d).toInt()
+        crop[1] = (1.6 * d).toInt()
+        crop[2] = (xMin - 0.3 * d).toInt()
+        crop[3] = (yMax + 0.3 * d).toInt()
+
+        Log.i("Crop","(${crop[0]},${crop[1]},${crop[2]},${crop[3]})")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -227,6 +305,10 @@ class DecoderFragment : Fragment() {
         hints[DecodeHintType.TRY_HARDER] = true
         hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
 
+        //Initialise ResultPoint array
+        //ROI = listOf(ResultPoint(0.0F, 0.0F), ResultPoint(0.0F, 0.0F),
+        //    ResultPoint(0.0F, 0.0F))
+
         //Button to start processing
         processButton = view.findViewById(R.id.process_button)
         processButton.setOnClickListener(){//Button click listener sets some variables
@@ -244,7 +326,13 @@ class DecoderFragment : Fragment() {
             }
             //Log.i("mact","RadioID = $radio")
             scope.async {
-                decode(args.videoname)}
+                //var detected = detect(args.videoname)
+                if (detect(args.videoname)) {
+                    decode(args.videoname)
+                } else {
+                    Log.i("Main","No QR detected")
+                }
+            }
         }
     }
 
@@ -259,21 +347,3 @@ class DecoderFragment : Fragment() {
         private val converterAndroid : AndroidFrameConverter = AndroidFrameConverter()
     }
 }
-/*
-//Added by Miguel 01/09
-val alertDialog: AlertDialog? = activity?.let {
-    val builder = AlertDialog.Builder(it)
-    builder.apply {
-        setPositiveButton(R.string.OK,
-            DialogInterface.OnClickListener { dialog, id ->
-                /*Navigation.findNavController(requireActivity(),R.id.fragment_container)
-                    .navigate(SelectorFragmentDirections.actionSelectorToDecoder(mainActivity.video))*/
-            })
-        setMessage("Process will start soon...")
-        setTitle("Decoding")
-    }
-    // Set other dialog properties
-    // Create the AlertDialog
-    builder.create()
-}
-alertDialog?.show()*/
