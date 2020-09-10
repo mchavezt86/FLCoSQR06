@@ -58,7 +58,7 @@
         android:padding="10dp"
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
-        android:text="@string/processing"
+        android:text="@string/process"
         android:visibility="invisible"
         app:layout_constraintBottom_toTopOf="@+id/run_time"
         app:layout_constraintEnd_toEndOf="parent"

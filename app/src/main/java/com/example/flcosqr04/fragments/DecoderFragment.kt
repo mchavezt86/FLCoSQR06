@@ -37,8 +37,6 @@ class DecoderFragment : Fragment() {
     private lateinit var processButton: Button
     //Radio button value.`
     private var radio = 0
-    //Variables to get the area which contains only the QR
-    //private lateinit var rOI : Array<ResultPoint>
     private val crop : IntArray = IntArray(size = 6) /*[w:width,h:height,x:left coordinate,y:top
     coordinate,imgw:width of the original image,imgh:height of the original image]*/
 
@@ -60,97 +58,122 @@ class DecoderFragment : Fragment() {
         val frameG = FFmpegFrameGrabber(videoFile)
         /*val frameF = FFmpegFrameFilter("format=pix_fmts=bgr24, crop=w=${crop[0]}:h=${crop[1]}:x=${crop[2]}:y=${crop[3]}","",
             crop[4],crop[5],0)
-        frameF.pixelFormat = frameG.pixelFormat
-        var preFrame : Frame?*/
+        frameF.pixelFormat = frameG.pixelFormat*/
         var frame : Frame?
         //Variables for the OpenCV Mat
         var frameMat = Mat() // Frame in Mat format.
-        var matGray = Mat()// Frame converted to grayscale
-        var matNeg = Mat() // Negative grayscale image
-        var matEqP = Mat() // Equalised grayscale image
-        var matEqN = Mat() // Equalised negative image
-        var frameProc : Frame //Frame processed
+        val matGray = Mat()// Frame converted to grayscale
+        val matNeg = Mat() // Negative grayscale image
+        val matEqP = Mat() // Equalised grayscale image
+        val matEqN = Mat() // Equalised negative image
         //Variable for the region of interest (ROI)
-        //Variables for total frame count and check if a QR is detected
+        //Variables for total frame count, check if a QR is detected and if the FLC is detected
         var totalFrames = 0
         var noQR : Boolean
-        //Array of ResultPoints for detect the ROI (x,y,w,h)
-        val roi = Rect(crop[2],crop[3]-crop[1],crop[0],crop[1])
-        /*rOI = arrayOf(ResultPoint(0.0F, 0.0F), ResultPoint(0.0F, 0.0F),
-            ResultPoint(0.0F, 0.0F))*/
-        //IntArray(size = 4).copyInto(crop)
+        var flc = false
 
         //Start of execution time
         val starTime = System.currentTimeMillis()
 
         try {//Start FrameGrabber
             frameG.start()
-            //frameF.start()
         } catch (e : FrameGrabber.Exception) {
             Log.e("javacv", "Failed to start FrameGrabber: $e")
-        } /*catch (e : FrameFilter.Exception){
-            Log.e("javacv", "Failed to start FrameFilter: $e")
-        }*/
+        }
         frame = null
-        do {//Loop to grab all frames
+
+        /*Find the FLC active area.
+        * Main Logic:
+        * The FLC active area stands out of the surface as a rectangle, despite of what the FLC is
+        * displaying. During the first frames the code tries to find the best fit 'rectangle' which
+        * surrounds the FLC. This will be used as the ROI. The code will loop in its attempt to find
+        * a the FLC.
+        * *********SUBJECT TO EVALUATION!!!!!!*********
+        * The potential problem is that if no rectangle is found, the process will not start*/
+
+        do { // Loop to grab frames.
             try {
                 frame = frameG.grabFrame()
-                //Clear variables.
-                matGray.release()
-                frameMat.release()
                 if (frame != null){
-                    //Log.i("javacv","Frame grabbed")
-
-                    //Conversions
-                    //frameMat = converterToMat.convert(frame) //Frame to Mat
-                    frameMat = Mat(converterToMat.convert(frame),roi) //Frame to Mat with ROI
-                    cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
-                    //Log.i("mact","Mat size: (${matGray.size().width()},${matGray.size().height()})")
-
-                    /*Main logic:
-                    * If no QR is detected, the code will continue to try to detect QRs according to
-                    * user selection of the radio button*/
-                    //First detection attempt using grayscale image.
-                    noQR = decodeQR(matGray)
-                    if (!noQR) Log.i("QR Reader","Detected by gray")
-
-                    //Second detection attempt using negative image.
-                    if (noQR && radio > 1) {
-                        matNeg.release()
-                        bitwise_not(matGray,matNeg)
-                        noQR = decodeQR(matNeg)
-                        if (!noQR) Log.i("QR Reader","Detected by negative")
-                    }
-
-                    //Third attempt using grayscale equalised image.
-                    if (noQR && radio > 2) {
-                        matEqP.release()
-                        equalizeHist(matGray,matEqP)
-                        noQR = decodeQR(matEqP)
-                        if (!noQR) Log.i("QR Reader","Detected by equalised gray")
-                    }
-
-                    //Fourth attempt using negative equalised image.
-                    if (noQR && radio > 3) {
-                        matEqN.release()
-                        equalizeHist(matNeg, matEqN)
-                        noQR = decodeQR(matEqN)
-                        if (!noQR) Log.i("QR Reader","Detected by equalised neg")
-                    }
-
-                    //Print message if nothing detected
-                    if(noQR) Log.i("QR Reader","No QR detected")
-
-                    totalFrames += 1
+                    // When the rectangle is detected break this loop.
+                    flc = detect(frame)
+                    if (flc) break
                 }
             } catch (e : FrameGrabber.Exception){
                 Log.e("javacv", "Failed to grab frame: $e")
-            } catch (e: FrameFilter.Exception){
-                Log.e("javacv", "Failed to grab filtered frame: $e")
             }
-        } while (frame != null) //preFrame
+        } while (frame != null)
+
+        //If the FLC is detected, continue to grab frames and decode.
+        if (flc){
+            //Array of ResultPoints for detect the ROI (x,y,w,h)
+            val roi = Rect(crop[2],crop[3],crop[0],crop[1])
+            Log.i("Decode","${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
+            scope.launch(Dispatchers.Main){
+                videoproc.text = getString(R.string.processing)
+            }
+
+            do {//Loop to grab all frames
+                try {
+                    frame = frameG.grabFrame()
+                    //Clear variables.
+                    matGray.release()
+                    frameMat.release()
+                    if (frame != null){
+                        //Conversions
+                        frameMat = Mat(converterToMat.convert(frame),roi) //Frame to Mat with ROI
+                        cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
+
+                        /*Main logic:
+                        * If no QR is detected, the code will continue to try to detect QRs
+                        * according to user selection of the radio button*/
+
+                        //First detection attempt using grayscale image.
+                        noQR = decodeQR(matGray)
+                        if (!noQR) Log.i("QR Reader","Detected by gray")
+
+                        //Second detection attempt using negative image.
+                        if (noQR && radio > 1) {
+                            matNeg.release()
+                            bitwise_not(matGray,matNeg)
+                            noQR = decodeQR(matNeg)
+                            if (!noQR) Log.i("QR Reader","Detected by negative")
+                        }
+
+                        //Third attempt using grayscale equalised image.
+                        if (noQR && radio > 2) {
+                            matEqP.release()
+                            equalizeHist(matGray,matEqP)
+                            noQR = decodeQR(matEqP)
+                            if (!noQR) Log.i("QR Reader","Detected by equalised gray")
+                        }
+
+                        //Fourth attempt using negative equalised image.
+                        if (noQR && radio > 3) {
+                            matEqN.release()
+                            equalizeHist(matNeg, matEqN)
+                            noQR = decodeQR(matEqN)
+                            if (!noQR) Log.i("QR Reader","Detected by equalised neg")
+                        }
+
+                        //Print message if nothing detected
+                        if(noQR) Log.i("QR Reader","No QR detected")
+
+                        totalFrames += 1
+                    }
+                } catch (e : FrameGrabber.Exception){
+                    Log.e("javacv", "Failed to grab frame: $e")
+                }
+            } while (frame != null)
+        } else {
+            //if the display is not detected, display a message in the UI.
+            Log.i("FLC","Display not detected")
+            scope.launch(Dispatchers.Main){
+                videoproc.text = getString(R.string.nonedetected)
+            }
+        }
+
         try {//Stop FrameGrabber
-            //frameF.stop()
             frameG.stop()
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
@@ -158,8 +181,8 @@ class DecoderFragment : Fragment() {
         //End of execution time.
         val endTime = System.currentTimeMillis()
 
+        //Display results in the UI.
         scope.launch(Dispatchers.Main){
-            //videoproc.text = textFrames.plus(totalFrames.toString())
             totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
             runtime.text = getString(R.string.runtime).plus("${endTime-starTime} ms")
             videoproc.visibility = View.INVISIBLE
@@ -196,12 +219,96 @@ class DecoderFragment : Fragment() {
         return@withContext noQR
     }
 
+    /*Function to detect the active area of the FLC, as it reflects light it is brighter than the
+    * 3D printed holder. Use of OpenCV contour detection and physical dimensions of the FLC. Main
+    * logic: detect a rectangle that is not too big or too small and have an aspect ration smaller
+    * than 16/9 or 4/3
+    * Input: Frame
+    * Output: Boolean (if the area is detected)
+    * This function modifies a global array which has coordinates x, y and dimensions w, h of the
+    * active area of the FLC*/
+    private fun detect(frame : Frame) : Boolean{
+        //Variables definition, convert frame to grayscale.
+        val mat = converterToMat.convertToMat(frame)
+        cvtColor(mat,mat, COLOR_BGR2GRAY)
+        val binSize = mat.size().height()/2-1 //bin size for the binarisation
+        //Log.i("Binarisation","Bin size: $binSize")
+        //Constants for the area size
+        val minArea = (mat.size().area()/50) //> 2% of total screen
+        val maxArea = (mat.size().area()/12) //< 8% of total screen
+        //Other variables
+        val bin = Mat() //Mat for binarisation result
+        val contours = MatVector() /*Contour detection returns a Mat Vector*/
+        var found = false // will change to true if detects the FLC
+
+        /*Image processing of the frame consists of:
+        *- Adaptive Binarisation: large bin size allows to detect bigger features i.e. the FLC area
+        *  so the bin size is half of the camera width.
+        *  *********SUBJECT TO EVALUATION!!!!!!*********
+        *- Contour extraction: we use only the contour variable which holds the detected contours in
+        *  the form of a Mat vector*/
+        adaptiveThreshold(mat,bin,255.0, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY,binSize,0.0)
+        findContours(bin,contours,Mat(), RETR_EXTERNAL, CHAIN_APPROX_NONE) //Mat() is for hierarchy
+
+        /*Log.i("Mat","Area=${mat.size().area()}")
+        Log.i("Detect","min Area=${minArea}, max Area=${maxArea}")
+        Log.i("Detect","Number of contours: ${contours.size()}")*/
+
+        //Variable initialisation for the detected contour initialisation.
+        var cnt : Mat
+        var points : Mat
+        var rect : Rect
+        var aspect = 0.0
+
+        /*Main for loop allows iteration. Contours.get(index) returns a Mat which holds the contour
+        * points.*/
+        for (i in 0 until contours.size()){
+            cnt = contours.get(i)
+            points = Mat() //Polygon points
+            /*This function approximates each contour to a polygon. Parameters: source, destination,
+            * epsilon, closed polygon?. Epsilon: approximation accuracy. */
+            approxPolyDP(cnt,points, 0.01*arcLength(cnt,true),true)
+
+            /*The polygon approximation returns a Mat (name 'points'). The structure of this Mat is
+            * width = 1, height = number of vertices, channels = 2 (possibly coordinates).
+            * The steps from here are:
+            *- Select polygons with 4 corners
+            *- Select only polygons which are large enough in size.
+            *- Calculate a bounding rectangle for the polygon, for the FLC should be the actual FLC
+            *  area, thus the aspect ratio of this rectangle should be known.
+            *- Lastly, filter the rectangle based on its area not too big in size and have an aspect
+            *  ration between 0.5 and 2. We cannot tell if the rectangle is rotated but the aspect
+            *  ratio of the FLC is 16/9 = 1.7 or 9/16 = 0.56. However, if the FLC and the phone are
+            *  not parallel, the FLC might be a square. */
+            if (points.size().height()==4){
+                if(contourArea(cnt) > minArea){ //Only large polygons.
+                    rect = boundingRect(cnt)
+                    aspect = (rect.width().toDouble()/rect.height().toDouble())
+                    Log.i("Contour","Area=${contourArea(cnt)}")
+                    Log.i("Contour","Aspect=${aspect}")
+                    if (rect.area() < maxArea && aspect > 0.5 && aspect < 2.0){
+                        //Save values of ROI for the decode function.
+                        crop[0] = rect.width()
+                        crop[1] = rect.height()
+                        crop[2] = rect.x()
+                        crop[3] = rect.y()
+                        Log.i("FLC","w=${crop[0]},h=${crop[1]},x=${crop[2]},y=${crop[3]}")
+                        found = true // Detected!
+                        break // break 'contours' for loop.
+                    }
+                }
+            }
+        }
+        return found
+    }
+
+    //COMMENTED AS NEW detect FUNCTION IS UNDER DEVELOPMENT.
     /*Function to detect the QR and save its coordinates. Uses de Zxing module to detect any QR in
     * The video but does not decode it.
     * Input: String : video file path and name
     * Output: Boolean : true if detected, false if not.
     * Modifies the global variable coordinates[] */
-    private suspend fun detect(videoFile: String) : Boolean = withContext(Dispatchers.Default) {
+    /*private suspend fun detect(videoFile: String) : Boolean = withContext(Dispatchers.Default) {
         //Variables to hold Frame and Mat values.
         val frameG : FrameGrabber = FFmpegFrameGrabber(videoFile)  //FrameGrabber for the video
         var frame : Frame? // Frame grabbed.
@@ -242,13 +349,13 @@ class DecoderFragment : Fragment() {
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
         return@withContext detected
-    }
+    }*/
 
     /*Function to calculate the crop parameters for the Frame
     * Input: ResultPoint[] (the QR has only 3 ResultPoints)
     * Output: None
     * Modifies the global variable crop[]*/
-    private suspend fun getCrop(r : Array<ResultPoint>) = withContext(Dispatchers.Default) {
+    /*private suspend fun getCrop(r : Array<ResultPoint>) = withContext(Dispatchers.Default) {
         /*val xmin = minOf(r[0].x,r[1].x,r[2].x)
         val xmax = maxOf(r[0].x,r[1].x,r[2].x)
         val ymin = minOf(r[0].y,r[1].y,r[2].y)
@@ -275,7 +382,7 @@ class DecoderFragment : Fragment() {
         crop[3] = (yMax + 0.3 * d).toInt()
 
         Log.i("Crop","(${crop[0]},${crop[1]},${crop[2]},${crop[3]})")
-    }
+    }*/
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -305,14 +412,11 @@ class DecoderFragment : Fragment() {
         hints[DecodeHintType.TRY_HARDER] = true
         hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
 
-        //Initialise ResultPoint array
-        //ROI = listOf(ResultPoint(0.0F, 0.0F), ResultPoint(0.0F, 0.0F),
-        //    ResultPoint(0.0F, 0.0F))
-
         //Button to start processing
         processButton = view.findViewById(R.id.process_button)
         processButton.setOnClickListener(){//Button click listener sets some variables
             processButton.isEnabled = false
+            videoproc.text = getString(R.string.detecting)
             videoproc.visibility = View.VISIBLE
             runtime.text = getString(R.string.runtime)
             totalframes.text = getString(R.string.totalframes)
@@ -324,14 +428,10 @@ class DecoderFragment : Fragment() {
                 R.id.use_eqpos -> radio = 3
                 R.id.use_eqneg -> radio = 4
             }
-            //Log.i("mact","RadioID = $radio")
-            scope.async {
-                //var detected = detect(args.videoname)
-                if (detect(args.videoname)) {
-                    decode(args.videoname)
-                } else {
-                    Log.i("Main","No QR detected")
-                }
+            scope.launch {
+                /* The decode function is set to run on the Dispatcher.Default scope so it does not
+                * block the Main Thread*/
+                decode(args.videoname)
             }
         }
     }
@@ -339,10 +439,12 @@ class DecoderFragment : Fragment() {
     //Added by Miguel 31/08
     override fun onDestroy() {
         super.onDestroy()
-        job.cancel()
+        job.cancel() //Clean the other scope (threads) before finishing the fragment.
     }
 
     companion object {
+        /*These instance static methods are used to convert between formats: Frame to Mat or Frame
+        * Frame to Bitmap*/
         private val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         private val converterAndroid : AndroidFrameConverter = AndroidFrameConverter()
     }

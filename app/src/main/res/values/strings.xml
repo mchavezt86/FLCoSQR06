@@ -2,7 +2,8 @@
     <string name="app_name">FLCoSQR04</string>
     <string name="capture">Capture</string>
     <string name="stop">Stop</string>
-    <string name="preprocessing">Preprocessing…</string>
+    <string name="detecting">Detecting…</string>
+    <string name="nonedetected">No FLC detected</string>
     <string name="processing">Processing…</string>
     <string name="OK">OK</string>
     <string name="noimgproc">No image processing</string>
