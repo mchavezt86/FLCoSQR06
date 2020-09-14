@@ -73,10 +73,12 @@
         android:layout_marginTop="50dp"
         android:padding="10dp"
         android:text="@string/runtime"
+        app:layout_constraintBottom_toTopOf="@+id/total_frames"
         app:layout_constraintEnd_toEndOf="@+id/video_analyser"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="@+id/video_analyser"
-        app:layout_constraintTop_toBottomOf="@+id/video_analyser" />
+        app:layout_constraintTop_toBottomOf="@+id/video_analyser"
+        app:layout_constraintVertical_bias="0.0" />
 
     <Button
         android:id="@+id/process_button"
@@ -84,12 +86,10 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
         android:text="@string/process"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/video_analyser"
-        app:layout_constraintHorizontal_bias="0.525"
+        app:layout_constraintHorizontal_bias="0.507"
         app:layout_constraintStart_toStartOf="@+id/video_analyser"
-        app:layout_constraintTop_toBottomOf="@+id/total_frames"
-        app:layout_constraintVertical_bias="0.0" />
+        app:layout_constraintTop_toBottomOf="@+id/qrCount" />
 
     <TextView
         android:id="@+id/total_frames"
@@ -97,8 +97,24 @@
         android:layout_height="wrap_content"
         android:padding="10dp"
         android:text="@string/totalframes"
+        app:layout_constraintBottom_toTopOf="@+id/qrCount"
         app:layout_constraintEnd_toEndOf="@+id/video_analyser"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="@+id/video_analyser"
-        app:layout_constraintTop_toBottomOf="@+id/run_time" />
+        app:layout_constraintTop_toBottomOf="@+id/run_time"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <TextView
+        android:id="@+id/qrCount"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        android:padding="10dp"
+        android:text="@string/totalQRs"
+        app:layout_constraintBottom_toTopOf="@+id/process_button"
+        app:layout_constraintEnd_toEndOf="@+id/video_analyser"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="@+id/video_analyser"
+        app:layout_constraintTop_toBottomOf="@+id/total_frames" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

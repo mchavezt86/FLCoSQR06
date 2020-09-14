@@ -12,5 +12,6 @@
     <string name="eqneg">Use equalised negative image</string>
     <string name="runtime">Run time: </string>
     <string name="totalframes">Total frames: </string>
+    <string name="totalQRs">Total Unique QRs: </string>
     <string name="process">Process</string>
 </resources>

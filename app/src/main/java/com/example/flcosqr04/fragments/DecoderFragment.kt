@@ -34,9 +34,10 @@ class DecoderFragment : Fragment() {
     private lateinit var videoproc : TextView
     private lateinit var runtime : TextView
     private lateinit var totalframes : TextView
+    private lateinit var totalQRs : TextView
     private lateinit var processButton: Button
     //Radio button value.`
-    private var radio = 0
+    //private var radio = 0
     private val crop : IntArray = IntArray(size = 6) /*[w:width,h:height,x:left coordinate,y:top
     coordinate,imgw:width of the original image,imgh:height of the original image]*/
 
@@ -48,12 +49,16 @@ class DecoderFragment : Fragment() {
     private var job = Job()
     private val scope = CoroutineScope(job + Dispatchers.Main)
 
+    //Added by Miguel 10/09
+    private lateinit var qrString : String
+    private var qrCount : Int = 0
+
     /*Function to decode sequence by grabbing frame by frame from a video file using the FFmpeg
     * package. Then, using JavaCV's OpenCV package, the frames are image-processed before calling
     * the QR decoder from the Zxing package
     * Input: String : video file path and name
     * Output: None : QR results are printed in the console */
-    private suspend fun decode(videoFile : String) = withContext(Dispatchers.Default) {
+    private suspend fun decode(videoFile : String, radio : Int) = withContext(Dispatchers.Default) {
         //Variables to get frames: FrameGrabber, FFmpegFrameFilter, Frame
         val frameG = FFmpegFrameGrabber(videoFile)
         /*val frameF = FFmpegFrameFilter("format=pix_fmts=bgr24, crop=w=${crop[0]}:h=${crop[1]}:x=${crop[2]}:y=${crop[3]}","",
@@ -185,6 +190,7 @@ class DecoderFragment : Fragment() {
         scope.launch(Dispatchers.Main){
             totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
             runtime.text = getString(R.string.runtime).plus("${endTime-starTime} ms")
+            totalQRs.text = getString(R.string.totalQRs).plus("$qrCount")
             videoproc.visibility = View.INVISIBLE
             processButton.isEnabled = true
         }
@@ -210,6 +216,10 @@ class DecoderFragment : Fragment() {
         try { //Detect QR and print result
             result = qrReader.decode(binBitmap,hints)
             Log.i("QR Reader", result.text)
+            if (qrString.compareTo(result.text)!=0){
+                qrString = result.text
+                qrCount += 1
+            }
         } catch (e : NotFoundException){
             noQR = true //If not found, return true.
         }catch (e : Exception){
@@ -406,20 +416,27 @@ class DecoderFragment : Fragment() {
         videoproc = view.findViewById(R.id.video_analyser) //Processing...
         runtime = view.findViewById(R.id.run_time) //Run time:
         totalframes = view.findViewById(R.id.total_frames) //Total frames:
+        totalQRs = view.findViewById(R.id.qrCount) //Unique QRs detected
 
         //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
         hints[DecodeHintType.CHARACTER_SET] = "utf-8"
         hints[DecodeHintType.TRY_HARDER] = true
         hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
 
+        //Added by Miguel 10/09 - String var
+        qrString = "Packet00000000000"
+
         //Button to start processing
         processButton = view.findViewById(R.id.process_button)
         processButton.setOnClickListener(){//Button click listener sets some variables
+            var radio = 1 //Added by Miguel 10/09
+            qrCount = 0 //Added by Miguel 10/09
             processButton.isEnabled = false
             videoproc.text = getString(R.string.detecting)
             videoproc.visibility = View.VISIBLE
             runtime.text = getString(R.string.runtime)
             totalframes.text = getString(R.string.totalframes)
+            totalQRs.text = getString(R.string.totalQRs)
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
@@ -431,7 +448,7 @@ class DecoderFragment : Fragment() {
             scope.launch {
                 /* The decode function is set to run on the Dispatcher.Default scope so it does not
                 * block the Main Thread*/
-                decode(args.videoname)
+                decode(args.videoname, radio)
             }
         }
     }
