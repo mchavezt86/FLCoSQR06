@@ -41,17 +41,24 @@ class DecoderFragment : Fragment() {
     private val crop : IntArray = IntArray(size = 6) /*[w:width,h:height,x:left coordinate,y:top
     coordinate,imgw:width of the original image,imgh:height of the original image]*/
 
-    //Zxing QR reader and hints for its configuration
-    private val qrReader = QRCodeReader()
+    //Zxing QR reader and hints for its configuration, unique for each thread.
+    private val qrReader1 = QRCodeReader()
+    private val qrReader2 = QRCodeReader()
     private val hints = Hashtable<DecodeHintType, Any>()
 
-    //Added by Miguel 31/08
+    //Added by Miguel 31/08: Thread handling
     private var job = Job()
     private val scope = CoroutineScope(job + Dispatchers.Main)
 
-    //Added by Miguel 10/09
+    //Added by Miguel 10/09: Variables for unique QR counting
     private lateinit var qrString : String
     private var qrCount : Int = 0
+
+    //Added by Miguel 15/09: Unique converters for each thread
+    private val converterToMat1 : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
+    private val converterAndroid1 : AndroidFrameConverter = AndroidFrameConverter()
+    private val converterToMat2 : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
+    private val converterAndroid2 : AndroidFrameConverter = AndroidFrameConverter()
 
     /*Function to decode sequence by grabbing frame by frame from a video file using the FFmpeg
     * package. Then, using JavaCV's OpenCV package, the frames are image-processed before calling
@@ -75,6 +82,9 @@ class DecoderFragment : Fragment() {
         //Variables for total frame count, check if a QR is detected and if the FLC is detected
         var totalFrames = 0
         var noQR : Boolean
+        //New variables for multithreading
+        //var noGray : Boolean
+        //var noNeg : Boolean
         var flc = false
 
         //Start of execution time
@@ -126,10 +136,12 @@ class DecoderFragment : Fragment() {
                     frameMat.release()
                     if (frame != null){
                         //Conversions
-                        frameMat = Mat(converterToMat.convert(frame),roi) //Frame to Mat with ROI
+                        frameMat = Mat(converterToMat1.convert(frame),roi) /*Frame to Mat with ROI
+                        uses the firs converterToMat object*/
                         cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
 
-                        /*Main logic:
+                        /*
+                        /*Main logic: COMMENTED TO IMPLEMENT THREAD LOGIC
                         * If no QR is detected, the code will continue to try to detect QRs
                         * according to user selection of the radio button*/
 
@@ -163,7 +175,42 @@ class DecoderFragment : Fragment() {
 
                         //Print message if nothing detected
                         if(noQR) Log.i("QR Reader","No QR detected")
+                        */
 
+                        //NEW LOGIC TO BE IMPLEMENTED.
+                        when (radio) {
+                            1 -> {
+                                noQR = decodeQR(matGray,qrReader1,converterToMat1,converterAndroid1)
+                                if (!noQR) {Log.i("QR Reader","Detected by gray")}
+                                else {Log.i("QR Reader","No QR detected")}
+                            }
+                            2 -> {
+                                noQR = decodeQR(matGray,qrReader1,converterToMat1,converterAndroid1)
+                                if (!noQR) {Log.i("QR Reader","Detected by gray")}
+                                else {
+                                    matNeg.release()
+                                    bitwise_not(matGray,matNeg)
+                                    noQR = decodeQR(matNeg,qrReader1,converterToMat1,converterAndroid1)
+                                    if (!noQR) {Log.i("QR Reader","Detected by neg")}
+                                    else {Log.i("QR Reader","No QR detected")}
+                                }
+                            }
+                            3 -> {
+                                matNeg.release()
+                                bitwise_not(matGray,matNeg)
+                                //val temp1 = async { decodeQR(matGray, qrReader1) }
+                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    decodeQR(matGray, qrReader1,converterToMat1,converterAndroid1)
+                                }
+                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    decodeQR(matNeg, qrReader2,converterToMat2,converterAndroid2)
+                                }
+                                noQR = (temp1.await() ||  temp2.await())
+                                if (!noQR) {
+                                    Log.i("QR Reader","Detected by gray or neg")
+                                } else {Log.i("QR Reader","No QR detected")}
+                            }
+                        }
                         totalFrames += 1
                     }
                 } catch (e : FrameGrabber.Exception){
@@ -197,10 +244,13 @@ class DecoderFragment : Fragment() {
     }
 
     /*Function to decode QR based on a OpenCV Mat
-    * Input: OpenCV Mat()
+    * Input: OpenCV Mat(), QRCodeReader, OpenCVFrameConverter, AndroidFrameConverter
     * Output: Booolean: true if success in detection, false otherwise
     * Note: runs in the Default Thread, not Main. Called from the decode() function*/
-    private suspend fun decodeQR(gray: Mat) : Boolean = withContext(Dispatchers.Default) {
+    private suspend fun decodeQR(gray: Mat, qrReader: QRCodeReader,
+                                 converterToMat : OpenCVFrameConverter.ToMat,
+                                 converterAndroid : AndroidFrameConverter) : Boolean
+            = withContext(Dispatchers.Default) {
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         val frame = converterToMat.convert(gray)
         val bitmap = converterAndroid.convert(frame)
@@ -229,6 +279,16 @@ class DecoderFragment : Fragment() {
         return@withContext noQR
     }
 
+    /*Function to decode QR based on a OpenCV Mat
+    * Input: OpenCV Mat()
+    * Output: Booolean: true if success in detection, false otherwise
+    * Note: runs in the Default Thread, not Main. Called from the decode() function
+    private suspend fun decodeQRNeg(gray: Mat, qrReader: QRCodeReader) : Boolean = withContext(Dispatchers.Default) {
+        val matNeg = Mat()
+        bitwise_not(gray,matNeg)
+        return@withContext decodeQR(matNeg,qrReader)
+    }*/
+
     /*Function to detect the active area of the FLC, as it reflects light it is brighter than the
     * 3D printed holder. Use of OpenCV contour detection and physical dimensions of the FLC. Main
     * logic: detect a rectangle that is not too big or too small and have an aspect ration smaller
@@ -238,8 +298,8 @@ class DecoderFragment : Fragment() {
     * This function modifies a global array which has coordinates x, y and dimensions w, h of the
     * active area of the FLC*/
     private fun detect(frame : Frame) : Boolean{
-        //Variables definition, convert frame to grayscale.
-        val mat = converterToMat.convertToMat(frame)
+        //Variables definition, convert frame to grayscale, uses the first converter object
+        val mat = converterToMat1.convertToMat(frame)
         cvtColor(mat,mat, COLOR_BGR2GRAY)
         val binSize = mat.size().height()/2-1 //bin size for the binarisation
         //Log.i("Binarisation","Bin size: $binSize")
@@ -268,7 +328,7 @@ class DecoderFragment : Fragment() {
         var cnt : Mat
         var points : Mat
         var rect : Rect
-        var aspect = 0.0
+        var aspect: Double
 
         /*Main for loop allows iteration. Contours.get(index) returns a Mat which holds the contour
         * points.*/
@@ -458,11 +518,11 @@ class DecoderFragment : Fragment() {
         super.onDestroy()
         job.cancel() //Clean the other scope (threads) before finishing the fragment.
     }
-
+/*
     companion object {
         /*These instance static methods are used to convert between formats: Frame to Mat or Frame
         * Frame to Bitmap*/
         private val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         private val converterAndroid : AndroidFrameConverter = AndroidFrameConverter()
-    }
+    }*/
 }

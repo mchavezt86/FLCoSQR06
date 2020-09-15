@@ -7,9 +7,9 @@
     <string name="processing">Processing…</string>
     <string name="OK">OK</string>
     <string name="noimgproc">No image processing</string>
-    <string name="useneg">Use negative image</string>
-    <string name="eqpos">Use equalised image</string>
-    <string name="eqneg">Use equalised negative image</string>
+    <string name="useneg">Use negative image (seq)</string>
+    <string name="eqpos">Use equalised image (threads)</string>
+    <string name="eqneg">Not implemented yet</string>
     <string name="runtime">Run time: </string>
     <string name="totalframes">Total frames: </string>
     <string name="totalQRs">Total Unique QRs: </string>
