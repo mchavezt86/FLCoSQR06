@@ -1,6 +1,5 @@
 package com.example.flcosqr04.fragments
 
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -13,7 +12,6 @@ import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
 import com.example.flcosqr04.R
 import com.google.zxing.*
-import com.google.zxing.common.DetectorResult
 import com.google.zxing.common.HybridBinarizer
 import org.bytedeco.javacv.*
 import org.bytedeco.javacv.OpenCVFrameConverter
@@ -22,7 +20,6 @@ import org.bytedeco.opencv.global.opencv_core.*
 import org.bytedeco.opencv.global.opencv_imgproc.*
 import kotlinx.coroutines.*
 import com.google.zxing.qrcode.QRCodeReader
-import com.google.zxing.qrcode.detector.*
 import java.util.*
 import kotlin.Exception
 
@@ -49,6 +46,9 @@ class DecoderFragment : Fragment() {
     //Added by Miguel 31/08: Thread handling
     private var job = Job()
     private val scope = CoroutineScope(job + Dispatchers.Main)
+    //Added by Miguel 15/09: DispatcherIO for grabFrame
+    private var jobIO = Job()
+    private val scopeGrab = CoroutineScope(jobIO + Dispatchers.IO)
 
     //Added by Miguel 10/09: Variables for unique QR counting
     private lateinit var qrString : String
@@ -74,10 +74,12 @@ class DecoderFragment : Fragment() {
         var frame : Frame?
         //Variables for the OpenCV Mat
         var frameMat = Mat() // Frame in Mat format.
+        var frameROI = Mat() // Frame in Mat format.
         val matGray = Mat()// Frame converted to grayscale
         val matNeg = Mat() // Negative grayscale image
         val matEqP = Mat() // Equalised grayscale image
         val matEqN = Mat() // Equalised negative image
+        val matBi = Mat() // Equalised negative image
         //Variable for the region of interest (ROI)
         //Variables for total frame count, check if a QR is detected and if the FLC is detected
         var totalFrames = 0
@@ -106,13 +108,16 @@ class DecoderFragment : Fragment() {
         * *********SUBJECT TO EVALUATION!!!!!!*********
         * The potential problem is that if no rectangle is found, the process will not start*/
 
+
         do { // Loop to grab frames.
             try {
                 frame = frameG.grabFrame()
                 if (frame != null){
                     // When the rectangle is detected break this loop.
                     flc = detect(frame)
-                    if (flc) break
+                    if (flc) {
+                        break
+                    }
                 }
             } catch (e : FrameGrabber.Exception){
                 Log.e("javacv", "Failed to grab frame: $e")
@@ -124,7 +129,8 @@ class DecoderFragment : Fragment() {
             //Array of ResultPoints for detect the ROI (x,y,w,h)
             val roi = Rect(crop[2],crop[3],crop[0],crop[1])
             Log.i("Decode","${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
-            scope.launch(Dispatchers.Main){
+            //frame = frameIO.await()
+            scope.launch(){
                 videoproc.text = getString(R.string.processing)
             }
 
@@ -137,7 +143,7 @@ class DecoderFragment : Fragment() {
                     if (frame != null){
                         //Conversions
                         frameMat = Mat(converterToMat1.convert(frame),roi) /*Frame to Mat with ROI
-                        uses the firs converterToMat object*/
+                        uses the first converterToMat object*/
                         cvtColor(frameMat,matGray, COLOR_BGR2GRAY) //To Gray
 
                         /*
@@ -179,12 +185,12 @@ class DecoderFragment : Fragment() {
 
                         //NEW LOGIC TO BE IMPLEMENTED.
                         when (radio) {
-                            1 -> {
+                            /*1 -> {
                                 noQR = decodeQR(matGray,qrReader1,converterToMat1,converterAndroid1)
                                 if (!noQR) {Log.i("QR Reader","Detected by gray")}
                                 else {Log.i("QR Reader","No QR detected")}
-                            }
-                            2 -> {
+                            }*/
+                            1 -> {
                                 noQR = decodeQR(matGray,qrReader1,converterToMat1,converterAndroid1)
                                 if (!noQR) {Log.i("QR Reader","Detected by gray")}
                                 else {
@@ -192,23 +198,56 @@ class DecoderFragment : Fragment() {
                                     bitwise_not(matGray,matNeg)
                                     noQR = decodeQR(matNeg,qrReader1,converterToMat1,converterAndroid1)
                                     if (!noQR) {Log.i("QR Reader","Detected by neg")}
-                                    else {Log.i("QR Reader","No QR detected")}
+                                    //else {Log.i("QR Reader","No QR detected")}
                                 }
                             }
-                            3 -> {
-                                matNeg.release()
-                                bitwise_not(matGray,matNeg)
-                                //val temp1 = async { decodeQR(matGray, qrReader1) }
+                            2 -> {
                                 val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
                                     decodeQR(matGray, qrReader1,converterToMat1,converterAndroid1)
                                 }
                                 val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    matNeg.release()
+                                    bitwise_not(matGray,matNeg)
                                     decodeQR(matNeg, qrReader2,converterToMat2,converterAndroid2)
                                 }
-                                noQR = (temp1.await() ||  temp2.await())
+                                noQR = (temp1.await() &&  temp2.await())
                                 if (!noQR) {
                                     Log.i("QR Reader","Detected by gray or neg")
-                                } else {Log.i("QR Reader","No QR detected")}
+                                } //else {Log.i("QR Reader","No QR detected")}
+                            }
+                            3 -> {
+                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    matEqP.release()
+                                    equalizeHist(matGray,matEqP)
+                                    decodeQR(matEqP, qrReader1,converterToMat1,converterAndroid1)
+                                }
+                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    matNeg.release()
+                                    matEqN.release()
+                                    bitwise_not(matGray,matNeg)
+                                    equalizeHist(matNeg,matEqN)
+                                    decodeQR(matNeg, qrReader2,converterToMat2,converterAndroid2)
+                                }
+                                noQR = (temp1.await() &&  temp2.await())
+                                if (!noQR) {
+                                    Log.i("QR Reader","Detected by equalised or equalised negative")
+                                } //else {Log.i("QR Reader","No QR detected")}
+                            }
+                            4 -> {
+                                matBi.release()
+                                bilateralFilter(matGray,matBi,5,150.0,150.0)
+                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    decodeQR(matBi, qrReader1,converterToMat1,converterAndroid1)
+                                }
+                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    matNeg.release()
+                                    bitwise_not(matBi,matNeg)
+                                    decodeQR(matNeg, qrReader2,converterToMat2,converterAndroid2)
+                                }
+                                noQR = (temp1.await() &&  temp2.await())
+                                if (!noQR) {
+                                    Log.i("QR Reader","Detected by bilateral")
+                                } //else {Log.i("QR   Reader","No QR detected")}
                             }
                         }
                         totalFrames += 1
@@ -247,10 +286,10 @@ class DecoderFragment : Fragment() {
     * Input: OpenCV Mat(), QRCodeReader, OpenCVFrameConverter, AndroidFrameConverter
     * Output: Booolean: true if success in detection, false otherwise
     * Note: runs in the Default Thread, not Main. Called from the decode() function*/
-    private suspend fun decodeQR(gray: Mat, qrReader: QRCodeReader,
+    private /*suspend*/  fun decodeQR(gray: Mat, qrReader: QRCodeReader,
                                  converterToMat : OpenCVFrameConverter.ToMat,
                                  converterAndroid : AndroidFrameConverter) : Boolean
-            = withContext(Dispatchers.Default) {
+            /*= withContext(Dispatchers.Default)*/ {
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         val frame = converterToMat.convert(gray)
         val bitmap = converterAndroid.convert(frame)
@@ -276,7 +315,7 @@ class DecoderFragment : Fragment() {
             Log.e("QR Reader", "Reader error: $e")
             noQR = true //If not found, return true.
         }
-        return@withContext noQR
+        return/*@withContext*/ noQR
     }
 
     /*Function to decode QR based on a OpenCV Mat
@@ -500,10 +539,10 @@ class DecoderFragment : Fragment() {
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
-                R.id.no_dsp -> radio = 1
-                R.id.use_neg -> radio = 2
-                R.id.use_eqpos -> radio = 3
-                R.id.use_eqneg -> radio = 4
+                R.id.radio01 -> radio = 1
+                R.id.radio02 -> radio = 2
+                R.id.radio03 -> radio = 3
+                R.id.radio04 -> radio = 4
             }
             scope.launch {
                 /* The decode function is set to run on the Dispatcher.Default scope so it does not
@@ -517,6 +556,7 @@ class DecoderFragment : Fragment() {
     override fun onDestroy() {
         super.onDestroy()
         job.cancel() //Clean the other scope (threads) before finishing the fragment.
+        jobIO.cancel() //Clean the other scope (threads) before finishing the fragment.
     }
 /*
     companion object {

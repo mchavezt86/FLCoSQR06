@@ -6,10 +6,10 @@
     <string name="nonedetected">No FLC detected</string>
     <string name="processing">Processing…</string>
     <string name="OK">OK</string>
-    <string name="noimgproc">No image processing</string>
-    <string name="useneg">Use negative image (seq)</string>
-    <string name="eqpos">Use equalised image (threads)</string>
-    <string name="eqneg">Not implemented yet</string>
+    <string name="radio01">Normal (sequential)</string>
+    <string name="radio02">Normal (threads)</string>
+    <string name="radio03">Equalisation (threads)</string>
+    <string name="radio04">Bilateral filter (threads)</string>
     <string name="runtime">Run time: </string>
     <string name="totalframes">Total frames: </string>
     <string name="totalQRs">Total Unique QRs: </string>

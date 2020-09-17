@@ -32,7 +32,7 @@
         android:layout_marginStart="10dp"
         android:layout_marginTop="20dp"
         android:layout_marginEnd="10dp"
-        android:checkedButton="@id/no_dsp"
+        android:checkedButton="@id/radio01"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/video_analyser"
         app:layout_constraintHorizontal_bias="0.0"
@@ -42,28 +42,28 @@
         app:layout_constraintWidth_percent="0.4">
 
         <RadioButton
-            android:id="@+id/no_dsp"
+            android:id="@+id/radio01"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/noimgproc" />
+            android:text="@string/radio01" />
 
         <RadioButton
-            android:id="@+id/use_neg"
+            android:id="@+id/radio02"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/useneg" />
+            android:text="@string/radio02" />
 
         <RadioButton
-            android:id="@+id/use_eqpos"
+            android:id="@+id/radio03"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/eqpos" />
+            android:text="@string/radio03" />
 
         <RadioButton
-            android:id="@+id/use_eqneg"
+            android:id="@+id/radio04"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/eqneg" />
+            android:text="@string/radio04" />
     </RadioGroup>
 
     <TextView
