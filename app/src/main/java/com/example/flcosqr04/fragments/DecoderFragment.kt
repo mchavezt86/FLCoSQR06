@@ -80,6 +80,10 @@ class DecoderFragment : Fragment() {
         val matEqP = Mat() // Equalised grayscale image
         val matEqN = Mat() // Equalised negative image
         val matBi = Mat() // Equalised negative image
+        var preMat = Mat() // Previous frame in Mat format
+        val matMean = Mat() //Mean of consecutive frames in Mat format
+        val matDiff = Mat() //Difference of consecutive frames in Mat format.
+        var halfMat = Mat() //Current Mat divided by 2.
         //Variable for the region of interest (ROI)
         //Variables for total frame count, check if a QR is detected and if the FLC is detected
         var totalFrames = 0
@@ -128,11 +132,22 @@ class DecoderFragment : Fragment() {
         if (flc){
             //Array of ResultPoints for detect the ROI (x,y,w,h)
             val roi = Rect(crop[2],crop[3],crop[0],crop[1])
-            Log.i("Decode","${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
+            Log.i("Decode","ROI: ${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
             //frame = frameIO.await()
+            /*Save previous frame value, check for the divide operator*/
+            preMat.release()
+            preMat = Mat(converterToMat1.convert(frame),roi)
+            cvtColor(preMat,preMat, COLOR_BGR2GRAY)
+            //Log.i("Scale","Mat element (pre)=${preMat.arrayData()[10]}")
+            preMat = multiplyPut(preMat,0.5)
+            Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
+            //Log.i("Scale","Mat element (post)=${preMat.arrayData()[10]}")
+            /*Launch text change in the UI*/
             scope.launch(){
                 videoproc.text = getString(R.string.processing)
             }
+            /*Add the creation of the previous frame. IMPORTANT: this copies the data in frame
+            * so if the process will be restarted (start from frame 0) take this into account.*/
 
             do {//Loop to grab all frames
                 try {
@@ -249,6 +264,31 @@ class DecoderFragment : Fragment() {
                                     Log.i("QR Reader","Detected by bilateral")
                                 } //else {Log.i("QR   Reader","No QR detected")}
                             }
+                            5 -> {
+                                matMean.release()
+                                matDiff.release()
+                                //halfMat.release()
+                                halfMat = multiplyPut(matGray,0.5)
+                                //Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
+                                //Log.i("Preframe","halfMat size: ${halfMat.size().width()},${halfMat.size().height()},${halfMat.channels()}")
+                                subtract(preMat,halfMat,matDiff)
+                                add(preMat,halfMat,matMean)
+                                //Log.i("Preframe","matDiff size: ${matDiff.size().width()},${matDiff.size().height()},${matDiff.channels()}")
+                                //Log.i("Preframe","matMean size: ${matMean.size().width()},${matMean.size().height()},${matMean.channels()}")
+                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    decodeQR(matMean, qrReader1,converterToMat1,converterAndroid1)
+                                }
+                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    decodeQR(matDiff, qrReader2,converterToMat2,converterAndroid2)
+                                }
+                                noQR = (temp1.await() &&  temp2.await())
+                                if (!noQR) {
+                                    Log.i("QR Reader","Detected by mean or diff")
+                                }
+                                //matGray.copyTo(preMat)
+                                preMat = multiplyPut(matGray,0.5)
+                                //Log.i("Preframe (after copyTo)","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
+                            }
                         }
                         totalFrames += 1
                     }
@@ -295,8 +335,10 @@ class DecoderFragment : Fragment() {
         val bitmap = converterAndroid.convert(frame)
         val intData = IntArray(bitmap.width * bitmap.height)
         bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-        val binBitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
-            bitmap.height,intData)))
+        /*val binBitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
+            bitmap.height,intData)))*/
+        val lumSource : LuminanceSource = RGBLuminanceSource(bitmap.width, bitmap.height,intData)
+        val binBitmap = BinaryBitmap(HybridBinarizer(lumSource))
         //Store result of QR detection
         val result : Result
         //Initialise as "no QR detected"
@@ -357,7 +399,7 @@ class DecoderFragment : Fragment() {
         *- Contour extraction: we use only the contour variable which holds the detected contours in
         *  the form of a Mat vector*/
         adaptiveThreshold(mat,bin,255.0, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY,binSize,0.0)
-        findContours(bin,contours,Mat(), RETR_EXTERNAL, CHAIN_APPROX_NONE) //Mat() is for hierarchy
+        findContours(bin,contours,Mat(), RETR_LIST, CHAIN_APPROX_NONE) //Mat() is for hierarchy [RETR_EXTERNAL]
 
         /*Log.i("Mat","Area=${mat.size().area()}")
         Log.i("Detect","min Area=${minArea}, max Area=${maxArea}")
@@ -543,6 +585,7 @@ class DecoderFragment : Fragment() {
                 R.id.radio02 -> radio = 2
                 R.id.radio03 -> radio = 3
                 R.id.radio04 -> radio = 4
+                R.id.radio05 -> radio = 5
             }
             scope.launch {
                 /* The decode function is set to run on the Dispatcher.Default scope so it does not
