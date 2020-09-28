@@ -94,7 +94,7 @@ class DecoderFragment : Fragment() {
         var flc = false
 
         //Start of execution time
-        val starTime = System.currentTimeMillis()
+        //val starTime = System.currentTimeMillis()
 
         try {//Start FrameGrabber
             frameG.start()
@@ -127,6 +127,9 @@ class DecoderFragment : Fragment() {
                 Log.e("javacv", "Failed to grab frame: $e")
             }
         } while (frame != null)
+
+        //Start of execution time
+        val starTime = System.currentTimeMillis()
 
         //If the FLC is detected, continue to grab frames and decode.
         if (flc){
@@ -267,27 +270,40 @@ class DecoderFragment : Fragment() {
                             5 -> {
                                 matMean.release()
                                 matDiff.release()
-                                //halfMat.release()
                                 halfMat = multiplyPut(matGray,0.5)
-                                //Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
-                                //Log.i("Preframe","halfMat size: ${halfMat.size().width()},${halfMat.size().height()},${halfMat.channels()}")
-                                subtract(preMat,halfMat,matDiff)
-                                add(preMat,halfMat,matMean)
-                                //Log.i("Preframe","matDiff size: ${matDiff.size().width()},${matDiff.size().height()},${matDiff.channels()}")
-                                //Log.i("Preframe","matMean size: ${matMean.size().width()},${matMean.size().height()},${matMean.channels()}")
                                 val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    add(preMat,halfMat,matMean)
                                     decodeQR(matMean, qrReader1,converterToMat1,converterAndroid1)
                                 }
                                 val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    subtract(preMat,halfMat,matDiff)
                                     decodeQR(matDiff, qrReader2,converterToMat2,converterAndroid2)
                                 }
                                 noQR = (temp1.await() &&  temp2.await())
                                 if (!noQR) {
                                     Log.i("QR Reader","Detected by mean or diff")
                                 }
-                                //matGray.copyTo(preMat)
                                 preMat = multiplyPut(matGray,0.5)
-                                //Log.i("Preframe (after copyTo)","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
+                            }
+                            6 -> {
+                                matMean.release()
+                                matDiff.release()
+                                halfMat = multiplyPut(matGray,0.5)
+                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    add(preMat,halfMat,matMean)
+                                    bitwise_not(matMean,matMean)
+                                    decodeQR(matMean, qrReader1,converterToMat1,converterAndroid1)
+                                }
+                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                    subtract(preMat,halfMat,matDiff)
+                                    bitwise_not(matDiff,matDiff)
+                                    decodeQR(matDiff, qrReader2,converterToMat2,converterAndroid2)
+                                }
+                                noQR = (temp1.await() &&  temp2.await())
+                                if (!noQR) {
+                                    Log.i("QR Reader","Detected by mean or diff")
+                                }
+                                preMat = multiplyPut(matGray,0.5)
                             }
                         }
                         totalFrames += 1
@@ -586,6 +602,7 @@ class DecoderFragment : Fragment() {
                 R.id.radio03 -> radio = 3
                 R.id.radio04 -> radio = 4
                 R.id.radio05 -> radio = 5
+                R.id.radio06 -> radio = 6
             }
             scope.launch {
                 /* The decode function is set to run on the Dispatcher.Default scope so it does not

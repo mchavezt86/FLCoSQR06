@@ -11,6 +11,7 @@
     <string name="radio03">Equalisation (threads)</string>
     <string name="radio04">Bilateral filter (threads)</string>
     <string name="radio05">Use previous frame</string>
+    <string name="radio06">Use previous frame (negative)</string>
     <string name="runtime">Run time: </string>
     <string name="totalframes">Total frames: </string>
     <string name="totalQRs">Total Unique QRs: </string>
