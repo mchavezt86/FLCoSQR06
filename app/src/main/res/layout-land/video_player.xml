@@ -30,7 +30,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="50dp"
         android:layout_marginEnd="10dp"
         android:checkedButton="@id/radio01"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -76,6 +76,24 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/radio06" />
+
+        <RadioButton
+            android:id="@+id/radio07"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/radio07" />
+
+        <RadioButton
+            android:id="@+id/radio08"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/radio08" />
+
+        <RadioButton
+            android:id="@+id/radio09"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/radio09" />
     </RadioGroup>
 
     <TextView
