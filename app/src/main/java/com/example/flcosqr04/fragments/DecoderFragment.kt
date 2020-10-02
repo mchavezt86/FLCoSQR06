@@ -503,7 +503,9 @@ class DecoderFragment : Fragment() {
             /*= withContext(Dispatchers.Default)*/ {
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         val frame = converterToMat.convert(gray)
-        val bitmap = converterAndroid.convert(frame)
+        //val bitmap = converterAndroid.convert(frame)
+        val converterAnd = AndroidFrameConverter()
+        val bitmap = converterAnd.convert(frame)
         val intData = IntArray(bitmap.width * bitmap.height)
         bitmap.getPixels(intData,0,bitmap.width,0,0,bitmap.width,bitmap.height)
         /*val binBitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width,
