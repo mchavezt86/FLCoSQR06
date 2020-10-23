@@ -139,10 +139,12 @@ class CameraFragment : Fragment()  {
             addTarget(viewFinder.holder.surface)
             // High speed capture session requires a target FPS range, even for preview only
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(FPS_PREVIEW_ONLY, args.fps))
-            //Added by Miguel
+            //Added by Miguel - Zoom 4x
             set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
-            //Added by Miguel 02/09
+            //Added by Miguel 02/09 - Lowest AE Exposure Compensation
             set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
+            //Added by Miguel 10/10 - Lock AE when previewing.
+            //set(CaptureRequest.CONTROL_AE_LOCK,true)
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
@@ -159,12 +161,14 @@ class CameraFragment : Fragment()  {
             addTarget(recorderSurface)
             // Sets user requested FPS for all targets
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(args.fps, args.fps))
-            //Added by Miguel
+            //Added by Miguel - Zoom 4x
             set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
-            //Added by Miguel 02/09
+            //Added by Miguel 02/09 - Lowest AE Exposure Compensation
             //set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO)
             //set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON)
             set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
+            //Added by Miguel 10/10 - Lock AE when recording.
+            //set(CaptureRequest.CONTROL_AE_LOCK,true)
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
@@ -339,6 +343,9 @@ class CameraFragment : Fragment()  {
                         // Prevents screen rotation during the video recording
                         requireActivity().requestedOrientation =
                             ActivityInfo.SCREEN_ORIENTATION_LOCKED
+
+                        //Added by Miguel 10/10
+                        session
 
                         // Stops preview requests, and start record requests
                         session.stopRepeating()
