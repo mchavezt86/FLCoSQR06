@@ -15,6 +15,7 @@
     <string name="radio07">Equalised + previous frame (negative)</string>
     <string name="radio08">All in one [1]</string>
     <string name="radio09">All in one [2]</string>
+    <string name="radio10">Save to array</string>
     <string name="runtime">Run time: </string>
     <string name="totalframes">Total frames: </string>
     <string name="totalQRs">Total Unique QRs: </string>
