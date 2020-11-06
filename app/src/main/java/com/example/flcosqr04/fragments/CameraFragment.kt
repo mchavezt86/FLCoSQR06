@@ -360,6 +360,7 @@ class CameraFragment : Fragment()  {
                         }
                         recordingStartMillis = System.currentTimeMillis()
                         Log.d(TAG, "Recording started")
+                        Log.i("FLC","StartVideo")
 
                         // Starts recording animation
                         overlay.post(animationTask)

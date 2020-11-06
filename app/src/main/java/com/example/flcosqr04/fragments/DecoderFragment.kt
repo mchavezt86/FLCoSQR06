@@ -24,6 +24,7 @@ import org.bytedeco.opencv.opencv_core.Context
 import org.bytedeco.opencv.opencv_core.Mat
 import org.bytedeco.opencv.opencv_core.MatVector
 import org.bytedeco.opencv.opencv_core.Rect
+import java.lang.StringBuilder
 import java.util.*
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedDeque
@@ -37,6 +38,7 @@ class DecoderFragment : Fragment() {
     private lateinit var totalframes : TextView
     private lateinit var totalQRs : TextView
     private lateinit var processButton: Button
+    private lateinit var results : TextView
     //Radio button value.`
     //private var radio = 0
     private val crop : IntArray = IntArray(size = 6) /*[w:width,h:height,x:left coordinate,y:top
@@ -74,7 +76,8 @@ class DecoderFragment : Fragment() {
     private lateinit var qrString : String
     private var qrCount : Int = 0
     //Saving the QR data in a concurrent variable
-    private var rxData = ConcurrentLinkedDeque<String>()
+    private val rxData = ConcurrentLinkedDeque<String>()
+    private val data : MutableList<String> = mutableListOf()
 
     //Added by Miguel 15/09: Unique converters for each thread
     private val converterToMat1 : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
@@ -508,8 +511,8 @@ class DecoderFragment : Fragment() {
                                             tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
                                             tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
                                             /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
-                                } catch (e: java.lang.Exception) {
-                                    Log.i("decodeScope","Exception: $e")
+                                } catch (e: CancellationException) {
+                                    //Log.i("decodeScope","Exception: $e")
                                 }
                                 /*while (scopeDecode.isActive) {
                                     Log.i("ScopeDecode","Active")
@@ -517,7 +520,7 @@ class DecoderFragment : Fragment() {
                             }
                         }
                         totalFrames += 1
-                        Log.i("Frames","$totalFrames")
+                        //Log.i("Frames","$totalFrames")
                     }
                 } catch (e : FrameGrabber.Exception){
                     Log.e("javacv", "Failed to grab frame: $e")
@@ -538,16 +541,36 @@ class DecoderFragment : Fragment() {
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
+
+        /*Print length of the data and tge data received. Received is in a ConcurrentLinkedQueue
+        * (rxData) which is added to a MutableList (data)*/
+        Log.i("Data","Length ${rxData.size}")
+        try {
+            data.addAll(rxData.toList())
+        } catch (e: Exception) {
+            Log.e("Data","$e")
+        }
+
         //End of execution time.
         val endTime = System.currentTimeMillis()
+
+        //Variables and processes to create results.
+        val resultString = StringBuilder()
+        data.sort()
 
         //Display results in the UI.
         scope.launch(Dispatchers.Main){
             totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
             runtime.text = getString(R.string.runtime).plus("${endTime-starTime} ms")
-            totalQRs.text = getString(R.string.totalQRs).plus("$qrCount")
+            totalQRs.text = getString(R.string.totalQRs).plus(data.size.toString())
             videoproc.visibility = View.INVISIBLE
             processButton.isEnabled = true
+            data.forEach {
+                Log.i("QR Reader","$it")
+                resultString.append(it.subSequence(6,9))
+                resultString.append(", ")
+            }
+            results.text = resultString.toString()
         }
     }
 
@@ -588,6 +611,11 @@ class DecoderFragment : Fragment() {
                 qrString = result.text
                 qrCount += 1
             }
+            //Get the data in String and try to add it to the ConcurrentLinkedQueue: rxData
+            /*qrString = result.text
+            if (!rxData.contains(qrString)){
+                rxData.add(qrString)
+            }*/
         } catch (e : Exception){//NotFoundException){
             noQR = true //If not found, return true.
         }/*catch (e : Exception){
@@ -620,21 +648,29 @@ class DecoderFragment : Fragment() {
 
         try { //Detect QR and print result
             result = qrReader.decode(binBitmap,hints)
+            //Get the data in String and try to add it to the ConcurrentLinkedQueue: rxData
+            qrString = result.text
+            //Log.i("QR Reader", result.text)
+            synchronized(rxData){ //Fully sync check and add data to the rxData.
+                if (!rxData.contains(qrString)){
+                    rxData.add(qrString)
+                }
+            }
             scopeDecode.cancel("QR detected")
             //CoroutineScope(Dispatchers.Default).launch { scopeDecode.cancel("QR detected") }
-            Log.i("QR Reader", result.text)
-            qrCount  += 1
+            /*Log.i("QR Reader", result.text)
+            qrCount  += 1*/
             return false
             //Cancel the scope of the decodeqr jobs.
             //scopeDecode.cancel("QR detected")
         } catch (e : NotFoundException){//NotFoundException){
-            Log.i("QR Reader","Not found")
+            //Log.i("QR Reader","Not found")
             }
         catch (e: ChecksumException){
-            Log.i("QR Reader","Checksum failed")
+            //Log.i("QR Reader","Checksum failed")
         }
         catch (e: FormatException){
-            Log.i("QR Reader","Format error")
+            //Log.i("QR Reader","Format error")
         }
         /*result = qrReader.decode(binBitmap,hints)
         Log.i("QR Reader", result.text)
@@ -750,6 +786,7 @@ class DecoderFragment : Fragment() {
         runtime = view.findViewById(R.id.run_time) //Run time:
         totalframes = view.findViewById(R.id.total_frames) //Total frames:
         totalQRs = view.findViewById(R.id.qrCount) //Unique QRs detected
+        results = view.findViewById(R.id.Result)
 
         //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
         hints[DecodeHintType.CHARACTER_SET] = "utf-8"
@@ -770,6 +807,8 @@ class DecoderFragment : Fragment() {
             runtime.text = getString(R.string.runtime)
             totalframes.text = getString(R.string.totalframes)
             totalQRs.text = getString(R.string.totalQRs)
+            rxData.clear()
+            data.clear()
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
@@ -787,7 +826,7 @@ class DecoderFragment : Fragment() {
             scope.launch {
                 /* The decode function is set to run on the Dispatcher.Default scope so it does not
                 * block the Main Thread*/
-                decode(args.videoname, radio)
+                decode(args.videoname, 10)//radio)
             }
         }
     }

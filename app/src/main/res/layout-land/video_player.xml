@@ -42,58 +42,67 @@
         app:layout_constraintWidth_percent="0.4">
 
         <RadioButton
-            android:id="@+id/radio01"
+            android:id="@+id/radio05"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio01" />
-
-        <RadioButton
-            android:id="@+id/radio02"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/radio02" />
-
-        <RadioButton
-            android:id="@+id/radio03"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/radio03" />
+            android:text="@string/radio05"
+            tools:visibility="gone" />
 
         <RadioButton
             android:id="@+id/radio04"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio04" />
+            android:text="@string/radio04"
+            tools:visibility="gone" />
 
         <RadioButton
-            android:id="@+id/radio05"
+            android:id="@+id/radio03"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio05" />
+            android:text="@string/radio03"
+            tools:visibility="gone" />
 
         <RadioButton
-            android:id="@+id/radio06"
+            android:id="@+id/radio02"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio06" />
+            android:text="@string/radio02"
+            tools:visibility="gone" />
 
         <RadioButton
             android:id="@+id/radio07"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio07" />
-
-        <RadioButton
-            android:id="@+id/radio08"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/radio08" />
+            android:text="@string/radio07"
+            tools:visibility="gone" />
 
         <RadioButton
             android:id="@+id/radio09"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/radio09" />
+            android:text="@string/radio09"
+            tools:visibility="gone" />
+
+        <RadioButton
+            android:id="@+id/radio06"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/radio06"
+            tools:visibility="gone" />
+
+        <RadioButton
+            android:id="@+id/radio01"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/radio01"
+            tools:visibility="gone" />
+
+        <RadioButton
+            android:id="@+id/radio08"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/radio08"
+            tools:visibility="gone" />
 
         <RadioButton
             android:id="@+id/radio10"
@@ -106,7 +115,7 @@
         android:id="@+id/run_time"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
+        android:layout_marginTop="20dp"
         android:padding="10dp"
         android:text="@string/runtime"
         app:layout_constraintBottom_toTopOf="@+id/total_frames"
@@ -152,5 +161,12 @@
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="@+id/video_analyser"
         app:layout_constraintTop_toBottomOf="@+id/total_frames" />
+
+    <TextView
+        android:id="@+id/Result"
+        android:layout_width="318dp"
+        android:layout_height="246dp"
+        tools:layout_editor_absoluteX="36dp"
+        tools:layout_editor_absoluteY="120dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
