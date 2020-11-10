@@ -7,9 +7,9 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:4.0.1"
+        classpath "com.android.tools.build:gradle:4.1.0"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "androidx.navigation:navigation-safe-args-gradle-plugin:2.2.2" /* Needed for
+        classpath "androidx.navigation:navigation-safe-args-gradle-plugin:2.3.1" /* Needed for
         navigation to generate Directions Java Classes*/
 
         // NOTE: Do not place your application dependencies here; they belong
