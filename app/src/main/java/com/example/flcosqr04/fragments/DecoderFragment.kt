@@ -28,6 +28,16 @@ import java.lang.StringBuilder
 import java.util.*
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedDeque
+import com.backblaze.erasure.ReedSolomon
+import java.nio.charset.StandardCharsets
+
+//Sizes for Reed Solomon Encoder
+private const val RS_DATA_SIZE = 130
+private const val RS_PARITY_SIZE = 45
+
+private const val RS_TOTAL_SIZE = 175
+//Number of bytes in a QR code, version 1: 17 bytes
+private const val QR_BYTES = 17
 
 class DecoderFragment : Fragment() {
     /** AndroidX navigation arguments */
@@ -39,10 +49,9 @@ class DecoderFragment : Fragment() {
     private lateinit var totalQRs : TextView
     private lateinit var processButton: Button
     private lateinit var results : TextView
-    //Radio button value.`
-    //private var radio = 0
-    private val crop : IntArray = IntArray(size = 6) /*[w:width,h:height,x:left coordinate,y:top
-    coordinate,imgw:width of the original image,imgh:height of the original image]*/
+    //ROI variable.
+    private val crop : IntArray = IntArray(size = 4) /*[w:width,h:height,x:left coordinate,y:top
+    coordinate]*/
 
     //Zxing QR reader and hints for its configuration, unique for each thread.
     private val qrReader1 = QRCodeReader()
@@ -75,9 +84,12 @@ class DecoderFragment : Fragment() {
     //Added by Miguel 10/09: Variables for unique QR counting
     private lateinit var qrString : String
     private var qrCount : Int = 0
-    //Saving the QR data in a concurrent variable
+    //Saving the QR data in a concurrent String list.
     private val rxData = ConcurrentLinkedDeque<String>()
     private val data : MutableList<String> = mutableListOf()
+    //Saving the QR data in a concurrent Byte list. Added 11/11
+    /*private lateinit var qrBytes : ByteArray
+    private val rxBytes = ConcurrentLinkedDeque<ByteArray>()*/
 
     //Added by Miguel 15/09: Unique converters for each thread
     private val converterToMat1 : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
@@ -111,18 +123,21 @@ class DecoderFragment : Fragment() {
     private val converterToMatEqDiffNeg : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
     private val converterAndroidEqDiffNeg : AndroidFrameConverter = AndroidFrameConverter()
 
+    //Reed Solomon variables: Byte Array for data and Boolean Array for erasures
+    private val rs = ReedSolomon.create(RS_DATA_SIZE, RS_PARITY_SIZE)
+    private val byteMsg = Array(RS_TOTAL_SIZE) {ByteArray(QR_BYTES-1) {0} }
+    private val erasure = BooleanArray(RS_TOTAL_SIZE){false}
+
     /*Function to decode sequence by grabbing frame by frame from a video file using the FFmpeg
     * package. Then, using JavaCV's OpenCV package, the frames are image-processed before calling
     * the QR decoder from the Zxing package
     * Input: String : video file path and name
     * Output: None : QR results are printed in the console */
     private suspend fun decode(videoFile : String, radio : Int) = withContext(Dispatchers.Default) {
-        //Variables to get frames: FrameGrabber, FFmpegFrameFilter, Frame
+        //Variables to get frames: FrameGrabber, Frame
         val frameG = FFmpegFrameGrabber(videoFile)
-        /*val frameF = FFmpegFrameFilter("format=pix_fmts=bgr24, crop=w=${crop[0]}:h=${crop[1]}:x=${crop[2]}:y=${crop[3]}","",
-            crop[4],crop[5],0)
-        frameF.pixelFormat = frameG.pixelFormat*/
         var frame : Frame?
+        val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         //Variables for the OpenCV Mat
         var frameMat = Mat() // Frame in Mat format.
         var frameROI = Mat() // Frame in Mat format.
@@ -142,7 +157,6 @@ class DecoderFragment : Fragment() {
         val matEqDiff = Mat()
         val matEqMeanNeg = Mat()
         val matEqDiffNeg = Mat()
-        //Variable for the region of interest (ROI)
         //Variables for total frame count, check if a QR is detected and if the FLC is detected
         var totalFrames = 0
         var noQR : Boolean
@@ -192,7 +206,7 @@ class DecoderFragment : Fragment() {
             Log.i("Decode","ROI: ${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
             /*Save previous frame value, check for the divide operator*/
             //preMat.release()
-            preMat = Mat(converterToMat1.convert(frame),roi)
+            preMat = Mat(converterToMat.convert(frame),roi)
             cvtColor(preMat,preMat,COLOR_BGR2GRAY)
             //Log.i("Scale","Mat element (pre)=${preMat.arrayData()[10]}")
             preMat = multiplyPut(preMat,0.5)
@@ -213,7 +227,7 @@ class DecoderFragment : Fragment() {
                     //frameMat.release()
                     if (frame != null){
                         //Conversions
-                        frameMat = Mat(converterToMat1.convert(frame),roi) /*Frame to Mat with ROI
+                        frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
                         uses the first converterToMat object*/
                         cvtColor(frameMat,matGray,COLOR_BGR2GRAY) //To Gray
 
@@ -558,6 +572,20 @@ class DecoderFragment : Fragment() {
         val resultString = StringBuilder()
         data.sort()
 
+        //Order binary data.
+        orderByteData()
+        /*Apply Reed Solomon, inside a try-catch:
+        * Try to perform the Reed Solomon decoding and modify the text using the StringBuilder. If
+        * the decoding fails the StringBuilder shows an error message.*/
+        try {
+            rs.decodeMissing(byteMsg, erasure, 0, QR_BYTES - 1)
+            for (i in 0 until RS_DATA_SIZE){
+                resultString.append(byteMsg[i].toString(Charsets.ISO_8859_1))
+            }
+        } catch (e: Exception){
+            Log.e("RS",e.message)
+            resultString.append("Error during Reed Solomon decoding.")
+        }
         //Display results in the UI.
         scope.launch(Dispatchers.Main){
             totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
@@ -565,11 +593,6 @@ class DecoderFragment : Fragment() {
             totalQRs.text = getString(R.string.totalQRs).plus(data.size.toString())
             videoproc.visibility = View.INVISIBLE
             processButton.isEnabled = true
-            data.forEach {
-                Log.i("QR Reader","$it")
-                resultString.append(it.subSequence(6,9))
-                resultString.append(", ")
-            }
             results.text = resultString.toString()
         }
     }
@@ -578,9 +601,7 @@ class DecoderFragment : Fragment() {
     * Input: OpenCV Mat(), QRCodeReader, OpenCVFrameConverter, AndroidFrameConverter
     * Output: Boolean: true if success in detection, false otherwise
     * Note: runs in the Default Thread, not Main. Called from the decode() function*/
-    private /*suspend*/ fun decodeQR(gray: Mat, qrReader: QRCodeReader/*,
-                                 converterToMat : OpenCVFrameConverter.ToMat,
-                                 converterAndroid : AndroidFrameConverter*/) : Boolean
+    private /*suspend*/ fun decodeQR(gray: Mat, qrReader: QRCodeReader) : Boolean
             /*= withContext(Dispatchers.Default)*/ {
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         //New: convert to RGBA first
@@ -589,8 +610,6 @@ class DecoderFragment : Fragment() {
         //Added 12/10 OpenCVFrameConverter.ToMat
         val converterMat = OpenCVFrameConverter.ToMat()
         val frame = converterMat.convert(rgba)
-        //val frame = converterToMat.convert(rgba) //gray - commented 12/10
-        //val bitmap = converterAndroid.convert(frame)
         val converterAnd = AndroidFrameConverter()
         val bitmap = converterAnd.convert(frame)
         val intData = IntArray(bitmap.width * bitmap.height)
@@ -643,17 +662,21 @@ class DecoderFragment : Fragment() {
         val binBitmap = BinaryBitmap(HybridBinarizer(lumSource))
         //Store result of QR detection
         val result : Result
-        //Return value
-        //val noQR = true
 
         try { //Detect QR and print result
             result = qrReader.decode(binBitmap,hints)
             //Get the data in String and try to add it to the ConcurrentLinkedQueue: rxData
             qrString = result.text
-            //Log.i("QR Reader", result.text)
-            synchronized(rxData){ //Fully sync check and add data to the rxData.
+            //Get the data in ByteArray and try to add it to the ConcurrentLinkedQueue: rxBytes. Added 11-11
+            //qrBytes = result.rawBytes
+            //Fully sync check and add data to the rxData.
+            synchronized(rxData){
                 if (!rxData.contains(qrString)){
                     rxData.add(qrString)
+                    Log.i("RS","String: $qrString")
+                    Log.i("RS","Bytes ISO: ${qrString.toByteArray(Charsets.ISO_8859_1).contentToString()}")
+                    //Log.i("RS","Bytes UTF: ${qrString.toByteArray(Charsets.UTF_8).contentToString()}")
+                    //Log.i("RS","Byte number: ${qrString.toByteArray(charset = Charsets.ISO_8859_1)[0].toUByte()}")
                 }
             }
             scopeDecode.cancel("QR detected")
@@ -690,10 +713,10 @@ class DecoderFragment : Fragment() {
     * active area of the FLC*/
     private fun detect(frame : Frame) : Boolean{
         //Variables definition, convert frame to grayscale, uses the first converter object
-        val mat = converterToMat1.convertToMat(frame)
+        val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
+        val mat = converterToMat.convertToMat(frame)
         cvtColor(mat,mat, COLOR_BGR2GRAY)
         val binSize = mat.size().height()/2-1 //bin size for the binarisation
-        //Log.i("Binarisation","Bin size: $binSize")
         //Constants for the area size
         val minArea = (mat.size().area()/50) //> 2% of total screen
         val maxArea = (mat.size().area()/12) //< 8% of total screen
@@ -710,10 +733,6 @@ class DecoderFragment : Fragment() {
         *  the form of a Mat vector*/
         adaptiveThreshold(mat,bin,255.0, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY,binSize,0.0)
         findContours(bin,contours,Mat(), RETR_LIST, CHAIN_APPROX_NONE) //Mat() is for hierarchy [RETR_EXTERNAL]
-
-        /*Log.i("Mat","Area=${mat.size().area()}")
-        Log.i("Detect","min Area=${minArea}, max Area=${maxArea}")
-        Log.i("Detect","Number of contours: ${contours.size()}")*/
 
         //Variable initialisation for the detected contour initialisation.
         var cnt : Mat
@@ -763,6 +782,36 @@ class DecoderFragment : Fragment() {
         return found
     }
 
+    /*Function to order the data stored in the array rxData (size: TOTAL_SIZE) of each QR read (17
+    * bytes for version 1, stored as a String).
+    * Input: None
+    * Output: None
+    * This function uses a global ConcurrentLinkedDeque (rxData) which holds the byte data of each
+    * read QR code, stored as a String.*/
+    private fun orderByteData() {
+        //Cast the rxBytes to an Array of ByteArray
+        //val dataBytes : Array<Any> = rxBytes.toArray() //as Array<ByteArray>
+        val dataBytes = ByteArray(17)
+        //dataBytes.sort()
+        rxData.forEach {
+            //it as ByteArray
+            //it.copyInto(byteMsg[it[0].toInt()],0,1, QR_BYTES-0)
+            it.toByteArray(charset=Charsets.ISO_8859_1).copyInto(dataBytes)
+            //erasure[it[0].toInt()]=true
+            /*Copy and set data into the arrays to needed to decode the using RS. These bytes may be
+            * interpreted as signed integers. The first byte contains the index in which the 16
+            * bytes of data should be stored and as the index must be Int (and does not accept an
+            * UInt) we mask the first byte using a bitwise AND with 0xFF (first byte) */
+            dataBytes.copyInto(byteMsg[dataBytes[0].toInt() and 0xFF],0,1)
+            erasure[it[0].toInt() and 0xFF]=true
+            //Log.i("RS","${it[0].toInt()}: ${byteMsg[it[0].toInt()].toString(Charsets.ISO_8859_1)}")
+            Log.i("RS","${dataBytes[0].toInt() and 0xFF}: " +
+                    byteMsg[dataBytes[0].toInt() and 0xFF].contentToString()
+            )
+        }
+        Log.i("RS","erasure: ${erasure.contentToString()}")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val callback = requireActivity().onBackPressedDispatcher.addCallback(this) {
@@ -789,12 +838,12 @@ class DecoderFragment : Fragment() {
         results = view.findViewById(R.id.Result)
 
         //Added by Miguel 01/09 - Added to use ZXing QRCodeReader
-        hints[DecodeHintType.CHARACTER_SET] = "utf-8"
+        hints[DecodeHintType.CHARACTER_SET] = StandardCharsets.ISO_8859_1.name()//"utf-8"
         hints[DecodeHintType.TRY_HARDER] = true
         hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
 
         //Added by Miguel 10/09 - String var
-        qrString = "Packet00000000000"
+        //qrString = "Packet00000000000"
 
         //Button to start processing
         processButton = view.findViewById(R.id.process_button)
@@ -807,8 +856,10 @@ class DecoderFragment : Fragment() {
             runtime.text = getString(R.string.runtime)
             totalframes.text = getString(R.string.totalframes)
             totalQRs.text = getString(R.string.totalQRs)
+            //Added 11-11
             rxData.clear()
             data.clear()
+            //rxBytes.clear()
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){

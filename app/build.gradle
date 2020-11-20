@@ -44,13 +44,12 @@ dependencies {
     implementation 'androidx.navigation:navigation-fragment-ktx:2.3.0'
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.0'
     implementation project(path: ':utils')
-    implementation project(path: ':opencv')
+    //implementation project(path: ':opencv')
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
     // https://mvnrepository.com/artifact/me.dm7.barcodescanner/zbar - Added by Miguel
-    implementation group: 'me.dm7.barcodescanner', name: 'zbar', version: '1.9.13'
     // https://mvnrepository.com/artifact/com.google.zxing/core
     implementation group: 'com.google.zxing', name: 'core', version: '3.4.0'
     // https://mvnrepository.com/artifact/com.google.zxing/android-core
