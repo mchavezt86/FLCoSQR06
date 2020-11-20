@@ -1,4 +1,3 @@
-include ':opencv'
 include ':utils'
 include ':app'
 rootProject.name = "FLCoSQR04"
