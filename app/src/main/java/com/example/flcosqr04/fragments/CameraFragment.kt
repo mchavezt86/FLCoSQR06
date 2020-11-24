@@ -135,12 +135,10 @@ class CameraFragment : Fragment()  {
     private lateinit var roiRectView : View
 
     /** The [ImageReader] that will be opened in this fragment to detect the ROI */
-    private var imgRdrROI = ImageReader.newInstance(args.width, args.height,
-        ImageFormat.YUV_420_888,2)
+    private lateinit var imgRdrROI : ImageReader
 
     /** The [ImageReader] that will be opened in this fragment to detect the ROI */
-    private var imgRdrQR = ImageReader.newInstance(args.width, args.height,
-        ImageFormat.YUV_420_888,10)
+    private lateinit var imgRdrQR : ImageReader
 
     /** Requests used for preview only in the [CameraConstrainedHighSpeedCaptureSession] */
     private val previewRequestList: List<CaptureRequest> by lazy {
@@ -148,6 +146,8 @@ class CameraFragment : Fragment()  {
         session.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             // Add the preview surface target
             addTarget(viewFinder.holder.surface)
+            //Add the ImageReader target - Miguel 23-11
+            addTarget(imgRdrROI.surface)
             // High speed capture session requires a target FPS range, even for preview only
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(FPS_PREVIEW_ONLY, args.fps))
             //Added by Miguel - Zoom 4x
@@ -213,6 +213,11 @@ class CameraFragment : Fragment()  {
         recorded = false
 
         //Added by Miguel 31-11
+        //Initialize the ImgReaders
+        imgRdrROI = ImageReader.newInstance(args.width, args.height,
+            ImageFormat.YUV_420_888,2)
+        imgRdrQR = ImageReader.newInstance(args.width, args.height,
+            ImageFormat.YUV_420_888,10)
         //Rectangle to show the ROI.
         roiRectView = view.findViewById(R.id.roirect)
 
@@ -331,7 +336,8 @@ class CameraFragment : Fragment()  {
         camera = openCamera(cameraManager, args.cameraId, cameraHandler)
 
         // Creates list of Surfaces where the camera will output frames
-        val targets = listOf(viewFinder.holder.surface, recorderSurface)
+        // Add the ImageReader surface - Miguel 23-11
+        val targets = listOf(viewFinder.holder.surface, recorderSurface, imgRdrROI.surface)
 
         // Start a capture session using our open camera and list of Surfaces where frames will go
         session = createCaptureSession(camera, targets, cameraHandler)
