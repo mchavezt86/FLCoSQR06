@@ -34,7 +34,6 @@ import java.nio.charset.StandardCharsets
 //Sizes for Reed Solomon Encoder
 private const val RS_DATA_SIZE = 130
 private const val RS_PARITY_SIZE = 45
-
 private const val RS_TOTAL_SIZE = 175
 //Number of bytes in a QR code, version 1: 17 bytes
 private const val QR_BYTES = 17

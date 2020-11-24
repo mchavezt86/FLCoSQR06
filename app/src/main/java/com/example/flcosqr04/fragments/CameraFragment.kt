@@ -2,17 +2,16 @@ package com.example.flcosqr04.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.DialogInterface
-import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
-import android.graphics.Paint
+import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.params.MeteringRectangle
 import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.MediaCodec
 import android.media.MediaRecorder
@@ -25,9 +24,6 @@ import android.util.Log
 import android.util.Range
 import android.util.Size
 import android.view.*
-import android.webkit.MimeTypeMap
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.FileProvider
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -50,6 +46,9 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import androidx.lifecycle.Observer
 import kotlinx.android.synthetic.main.fragment_camera.*
+import com.example.flcosqr04.ImageProcess
+import android.media.ImageReader
+import android.media.Image
 
 class CameraFragment : Fragment()  {
 
@@ -131,6 +130,18 @@ class CameraFragment : Fragment()  {
     /** The [CameraDevice] that will be opened in this fragment */
     private lateinit var camera: CameraDevice
 
+    /*Added by Miguel 23-11*/
+    /**The [Rectangle] which will show the ROI */
+    private lateinit var roiRectView : View
+
+    /** The [ImageReader] that will be opened in this fragment to detect the ROI */
+    private var imgRdrROI = ImageReader.newInstance(args.width, args.height,
+        ImageFormat.YUV_420_888,2)
+
+    /** The [ImageReader] that will be opened in this fragment to detect the ROI */
+    private var imgRdrQR = ImageReader.newInstance(args.width, args.height,
+        ImageFormat.YUV_420_888,10)
+
     /** Requests used for preview only in the [CameraConstrainedHighSpeedCaptureSession] */
     private val previewRequestList: List<CaptureRequest> by lazy {
         // Capture request holds references to target surfaces
@@ -200,8 +211,10 @@ class CameraFragment : Fragment()  {
 
         //Added by Miguel 28/08
         recorded = false
-        //mainActivity = requireActivity() as MainActivity
-        //mainActivity.video = "Test"
+
+        //Added by Miguel 31-11
+        //Rectangle to show the ROI.
+        roiRectView = view.findViewById(R.id.roirect)
 
         viewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
@@ -309,6 +322,10 @@ class CameraFragment : Fragment()  {
         //Added by Miguel
         //This variable will control the recording button actions: start/stop the recording.
         var record : Boolean = false
+
+        //Miguel 23-11
+        //Set the listener for the ImageReader to detect the ROI.
+        imgRdrROI.setOnImageAvailableListener(roiOnImageAvailableListener, cameraHandler)
 
         // Open the selected camera
         camera = openCamera(cameraManager, args.cameraId, cameraHandler)
@@ -492,6 +509,7 @@ class CameraFragment : Fragment()  {
             Navigation.findNavController(requireActivity(), R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))
         }*/
+        imgRdrROI.close() //Miguel 23-11
     }
 
     override fun onDestroy() {
@@ -499,6 +517,25 @@ class CameraFragment : Fragment()  {
         cameraThread.quitSafely()
         recorder.release()
         recorderSurface.release()
+        imgRdrROI.surface.release() //Miguel 23-11
+        imgRdrROI.close()
+    }
+
+    //Miguel 23-11
+    private var roiOnImageAvailableListener = ImageReader.OnImageAvailableListener { reader ->
+        val img = reader.acquireLatestImage()
+        if (img != null){
+            val roiRect = ImageProcess.detect(img)
+            if (roiRect != null){
+                img.close()
+                roiRectView.x = roiRect.x().toFloat()
+                roiRectView.y = roiRect.y().toFloat()
+                val rectLayout = roiRectView.layoutParams
+                rectLayout.width = roiRect.width()
+                rectLayout.height = roiRect.height()
+                roiRectView.layoutParams = rectLayout
+            }
+        }
     }
 
     companion object {
