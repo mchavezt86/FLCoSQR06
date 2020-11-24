@@ -3,6 +3,7 @@ package com.example.flcosqr04.fragments
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
@@ -24,6 +25,7 @@ import android.util.Log
 import android.util.Range
 import android.util.Size
 import android.view.*
+import androidx.constraintlayout.solver.widgets.Rectangle
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -47,8 +49,8 @@ import kotlin.coroutines.suspendCoroutine
 import androidx.lifecycle.Observer
 import kotlinx.android.synthetic.main.fragment_camera.*
 import com.example.flcosqr04.ImageProcess
-import android.media.ImageReader
-import android.media.Image
+import androidx.core.graphics.createBitmap
+import org.bytedeco.opencv.opencv_core.Rect
 
 class CameraFragment : Fragment()  {
 
@@ -135,10 +137,13 @@ class CameraFragment : Fragment()  {
     private lateinit var roiRectView : View
 
     /** The [ImageReader] that will be opened in this fragment to detect the ROI */
-    private lateinit var imgRdrROI : ImageReader
+    //private lateinit var imgRdrROI : ImageReader
 
     /** The [ImageReader] that will be opened in this fragment to detect the ROI */
-    private lateinit var imgRdrQR : ImageReader
+    //private lateinit var imgRdrQR : ImageReader
+
+    /** The [Bitmap] to receive the PixelCopy result*/
+    private lateinit var bmpSurf : Bitmap
 
     /** Requests used for preview only in the [CameraConstrainedHighSpeedCaptureSession] */
     private val previewRequestList: List<CaptureRequest> by lazy {
@@ -147,7 +152,7 @@ class CameraFragment : Fragment()  {
             // Add the preview surface target
             addTarget(viewFinder.holder.surface)
             //Add the ImageReader target - Miguel 23-11
-            addTarget(imgRdrROI.surface)
+            //addTarget(imgRdrROI.surface)
             // High speed capture session requires a target FPS range, even for preview only
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(FPS_PREVIEW_ONLY, args.fps))
             //Added by Miguel - Zoom 4x
@@ -214,10 +219,10 @@ class CameraFragment : Fragment()  {
 
         //Added by Miguel 31-11
         //Initialize the ImgReaders
-        imgRdrROI = ImageReader.newInstance(args.width, args.height,
-            ImageFormat.YUV_420_888,2)
-        imgRdrQR = ImageReader.newInstance(args.width, args.height,
-            ImageFormat.YUV_420_888,10)
+        /*imgRdrROI = ImageReader.newInstance(args.width, args.height,
+            ImageFormat.PRIVATE,2)*/
+        /*imgRdrQR = ImageReader.newInstance(args.width, args.height,
+            ImageFormat.YUV_420_888,10)*/
         //Rectangle to show the ROI.
         roiRectView = view.findViewById(R.id.roirect)
 
@@ -240,6 +245,18 @@ class CameraFragment : Fragment()  {
 
                 // To ensure that size is set, initialize camera in the view's thread
                 viewFinder.post { initializeCamera() }
+                //Added by Miguel 24-11
+                bmpSurf = createBitmap(previewSize.width,previewSize.height)
+                /*lifecycleScope.launch(Dispatchers.Default){
+                    delay(4000)
+                    //val bmpSurf = createBitmap(previewSize.width,previewSize.height)
+                    PixelCopy.request(viewFinder.holder.surface,bmpSurf,
+                        {copyResult ->
+                            run {
+                                Log.i("PixelCopy", copyResult.toString())
+                                }
+                        }, cameraHandler)
+                }*/
             }
         })
 
@@ -327,17 +344,19 @@ class CameraFragment : Fragment()  {
         //Added by Miguel
         //This variable will control the recording button actions: start/stop the recording.
         var record : Boolean = false
+        //24-11
+        var rectROI : Rect? = null
 
         //Miguel 23-11
         //Set the listener for the ImageReader to detect the ROI.
-        imgRdrROI.setOnImageAvailableListener(roiOnImageAvailableListener, cameraHandler)
+        //imgRdrROI.setOnImageAvailableListener(roiOnImageAvailableListener, cameraHandler)
 
         // Open the selected camera
         camera = openCamera(cameraManager, args.cameraId, cameraHandler)
 
         // Creates list of Surfaces where the camera will output frames
         // Add the ImageReader surface - Miguel 23-11
-        val targets = listOf(viewFinder.holder.surface, recorderSurface, imgRdrROI.surface)
+        val targets = listOf(viewFinder.holder.surface, recorderSurface)
 
         // Start a capture session using our open camera and list of Surfaces where frames will go
         session = createCaptureSession(camera, targets, cameraHandler)
@@ -354,6 +373,23 @@ class CameraFragment : Fragment()  {
         // Sends the capture request as frequently as possible until the session is torn down or
         // session.stopRepeating() is called
         session.setRepeatingBurst(previewRequestList, null, cameraHandler)
+
+        //Added by Miguel
+        lifecycleScope.launch(Dispatchers.Default){
+            delay(3000)
+            do {
+                PixelCopy.request(viewFinder.holder.surface,bmpSurf,
+                    {copyResult ->
+                        run {
+                            if (copyResult == PixelCopy.SUCCESS) {
+                                rectROI = ImageProcess.detectROI(bmpSurf)
+                            }
+                        }
+                    }, cameraHandler)
+            } while (rectROI == null)
+            Log.i("ROI","x:${rectROI!!.x()}, y:${rectROI!!.y()}, w:${rectROI!!.width()}," +
+                    "h:${rectROI!!.height()}")
+        }
 
         // Listen to the capture button
         capture_button.setOnTouchListener { view, event ->
@@ -515,7 +551,7 @@ class CameraFragment : Fragment()  {
             Navigation.findNavController(requireActivity(), R.id.fragment_container)
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))
         }*/
-        imgRdrROI.close() //Miguel 23-11
+        //imgRdrROI.close() //Miguel 23-11
     }
 
     override fun onDestroy() {
@@ -523,12 +559,12 @@ class CameraFragment : Fragment()  {
         cameraThread.quitSafely()
         recorder.release()
         recorderSurface.release()
-        imgRdrROI.surface.release() //Miguel 23-11
-        imgRdrROI.close()
+        /*imgRdrROI.surface.release() //Miguel 23-11
+        imgRdrROI.close()*/
     }
 
     //Miguel 23-11
-    private var roiOnImageAvailableListener = ImageReader.OnImageAvailableListener { reader ->
+    /*private var roiOnImageAvailableListener = ImageReader.OnImageAvailableListener { reader ->
         val img = reader.acquireLatestImage()
         if (img != null){
             val roiRect = ImageProcess.detect(img)
@@ -542,7 +578,7 @@ class CameraFragment : Fragment()  {
                 roiRectView.layoutParams = rectLayout
             }
         }
-    }
+    }*/
 
     companion object {
         private val TAG = CameraFragment::class.java.simpleName
