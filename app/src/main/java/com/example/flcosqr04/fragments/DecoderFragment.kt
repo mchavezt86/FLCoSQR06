@@ -20,7 +20,6 @@ import kotlinx.coroutines.*
 import org.bytedeco.javacv.*
 import org.bytedeco.opencv.global.opencv_core.*
 import org.bytedeco.opencv.global.opencv_imgproc.*
-import org.bytedeco.opencv.opencv_core.Context
 import org.bytedeco.opencv.opencv_core.Mat
 import org.bytedeco.opencv.opencv_core.MatVector
 import org.bytedeco.opencv.opencv_core.Rect
@@ -53,11 +52,11 @@ class DecoderFragment : Fragment() {
     coordinate]*/
 
     //Zxing QR reader and hints for its configuration, unique for each thread.
-    private val qrReader1 = QRCodeReader()
-    private val qrReader2 = QRCodeReader()
+    /*private val qrReader1 = QRCodeReader()
+    private val qrReader2 = QRCodeReader()*/
     private val hints = Hashtable<DecodeHintType, Any>()
     //Added by Miguel 29/09
-    private val qrReaderGray = QRCodeReader()
+    /*private val qrReaderGray = QRCodeReader()
     private val qrReaderNeg = QRCodeReader()
     private val qrReaderEqGray = QRCodeReader()
     private val qrReaderEqNeg = QRCodeReader()
@@ -68,7 +67,7 @@ class DecoderFragment : Fragment() {
     private val qrReaderEqMean = QRCodeReader()
     private val qrReaderEqDiff = QRCodeReader()
     private val qrReaderEqMeanNeg = QRCodeReader()
-    private val qrReaderEqDiffNeg = QRCodeReader()
+    private val qrReaderEqDiffNeg = QRCodeReader()*/
 
     //Added by Miguel 31/08: Thread handling
     private val job = Job()
@@ -92,8 +91,10 @@ class DecoderFragment : Fragment() {
 
     //Reed Solomon variables: Byte Array for data and Boolean Array for erasures
     private val rs = ReedSolomon.create(RS_DATA_SIZE, RS_PARITY_SIZE)
-    private val byteMsg = Array(RS_TOTAL_SIZE) {ByteArray(QR_BYTES-1) {0} }
-    private val erasure = BooleanArray(RS_TOTAL_SIZE){false}
+    //private val byteMsg = Array(RS_TOTAL_SIZE) {ByteArray(QR_BYTES-1) {0} }
+    private val byteMsg : Array<ByteArray> by lazy { Array(RS_TOTAL_SIZE) {ByteArray(QR_BYTES-1) {0} } }
+    //private val erasure = BooleanArray(RS_TOTAL_SIZE){false}
+    private val erasure : BooleanArray by lazy { BooleanArray(RS_TOTAL_SIZE){false} }
 
     /*Function to decode sequence by grabbing frame by frame from a video file using the FFmpeg
     * package. Then, using JavaCV's OpenCV package, the frames are image-processed before calling
@@ -197,7 +198,7 @@ class DecoderFragment : Fragment() {
                     cvtColor(frameMat,matGray,COLOR_BGR2GRAY) //To Gray
 
                     when (radio) {
-                        1 -> {
+                        /*1 -> {
                             val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
                                 decodeQR(matGray,qrReader1)
                             }
@@ -409,30 +410,30 @@ class DecoderFragment : Fragment() {
                                 Log.i("QR Reader","Detected by any")
                             }
                             preMat = multiplyPut(matGray,0.5)
-                        }
+                        }*/
                         10 -> {
                             val jobDecode = Job()
                             val scopeDecode = CoroutineScope(jobDecode + Dispatchers.Default)
                             halfMat = multiplyPut(matGray.clone(), 0.5)
                             val tmp1 = scopeDecode.async {
-                                decodeqr(matGray,qrReaderGray,this)
+                                decodeqr(matGray,/*qrReaderGray,*/this)
                             }
                             val tmp2 = scopeDecode.async {
                                 bitwise_not(matGray, matNeg)
-                                decodeqr(matNeg,qrReaderNeg,this)
+                                decodeqr(matNeg,/*qrReaderNeg,*/this)
                             }
                             val tmp3 = scopeDecode.async {
                                 equalizeHist(matGray, matEqP)
-                                decodeqr(matEqP,qrReaderEqGray,this)
+                                decodeqr(matEqP,/*qrReaderEqGray,*/this)
                             }
                             val tmp4 = scopeDecode.async {
                                 bitwise_not(matGray, matEqN)
                                 equalizeHist(matEqN, matEqN)
-                                decodeqr(matEqN,qrReaderEqNeg,this)
+                                decodeqr(matEqN,/*qrReaderEqNeg,*/this)
                             }
                             val tmp5 =scopeDecode.async {
                                 add(preMat, halfMat, matMean)
-                                decodeqr(matMean,qrReaderMean,this)
+                                decodeqr(matMean,/*qrReaderMean,*/this)
                             }
                             /*val tmp6 = scopeDecode.async {
                                 subtract(halfMat, preMat, matDiff)
@@ -441,7 +442,7 @@ class DecoderFragment : Fragment() {
                             val tmp7 = scopeDecode.async {
                                 add(preMat, halfMat, matMeanNeg)
                                 bitwise_not(matMeanNeg, matMeanNeg)
-                                decodeqr(matMeanNeg,qrReaderMeanNeg,this)
+                                decodeqr(matMeanNeg,/*qrReaderMeanNeg,*/this)
                             }  //Here app crashes for the OpenCV arithmetic
                             /*val tmp8 = scopeDecode.async {
                                 subtract(halfMat, preMat, matDiffNeg)
@@ -451,7 +452,7 @@ class DecoderFragment : Fragment() {
                             val tmp9 = scopeDecode.async {
                                 add(preMat, halfMat, matEqMean)
                                 equalizeHist(matEqMean, matEqMean)
-                                decodeqr(matEqMean,qrReaderEqMean,this)
+                                decodeqr(matEqMean,/*qrReaderEqMean,*/this)
                             }
                             /*val tmp10 = scopeDecode.async {
                                 subtract(halfMat, preMat, matEqDiff)
@@ -462,7 +463,7 @@ class DecoderFragment : Fragment() {
                                 add(preMat, halfMat, matEqMeanNeg)
                                 bitwise_not(matEqMeanNeg, matEqMeanNeg)
                                 equalizeHist(matEqMeanNeg, matEqMeanNeg)
-                                decodeqr(matEqMeanNeg,qrReaderEqMeanNeg,this)
+                                decodeqr(matEqMeanNeg,/*qrReaderEqMeanNeg,*/this)
                             }
                             /*val tmp12 = scopeDecode.async {
                                 subtract(halfMat, preMat, matEqDiffNeg)
@@ -595,7 +596,7 @@ class DecoderFragment : Fragment() {
     * Input: OpenCV Mat(), QRCodeReader, OpenCVFrameConverter, AndroidFrameConverter
     * Output: No output. Prints the QR and kill other process trying to decode.
     * Note: runs in the Default Thread, not Main. Called from the decode() function*/
-    private suspend fun decodeqr(gray: Mat, qrReader: QRCodeReader, scopeDecode : CoroutineScope) : Boolean {
+    private suspend fun decodeqr(gray: Mat, /*qrReader: QRCodeReader,*/ scopeDecode : CoroutineScope) : Boolean {
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         val rgba = Mat()
         cvtColor(gray,rgba, COLOR_GRAY2RGBA)
@@ -609,6 +610,7 @@ class DecoderFragment : Fragment() {
         val binBitmap = BinaryBitmap(HybridBinarizer(lumSource))
         //Store result of QR detection
         val result : Result
+        val qrReader = QRCodeReader()
 
         try { //Detect QR and print result
             result = qrReader.decode(binBitmap,hints)
@@ -650,7 +652,7 @@ class DecoderFragment : Fragment() {
     * Output: Boolean (if the area is detected)
     * This function modifies a global array which has coordinates x, y and dimensions w, h of the
     * active area of the FLC*/
-    private fun detect(frame : Frame) : Boolean{
+    /*private fun detect(frame : Frame) : Boolean{
         //Variables definition, convert frame to grayscale, uses the first converter object
         val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         val mat = converterToMat.convertToMat(frame)
@@ -719,7 +721,7 @@ class DecoderFragment : Fragment() {
             }
         }
         return found
-    }
+    }*/
 
     /*Function to order the data stored in the array rxData (size: TOTAL_SIZE) of each QR read (17
     * bytes for version 1, stored as a String).

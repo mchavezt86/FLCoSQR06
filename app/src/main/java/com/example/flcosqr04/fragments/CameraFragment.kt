@@ -471,8 +471,12 @@ class CameraFragment : Fragment()  {
                         Handler(Looper.getMainLooper()).post {
                             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                                 .navigate(CameraFragmentDirections.actionCameraToDecoder(
-                                    "$outputFile",rectROI!!.x(),rectROI!!.y(),
-                                rectROI!!.width(),rectROI!!.height()))
+                                    "$outputFile",rectROI!!.y(),bmpSurf.width -
+                                            rectROI!!.x() - rectROI!!.width(),rectROI!!.height(),
+                                    rectROI!!.width()))
+                            /*The actual values of the ROI rectangle needed for OpenCV Mat requires
+                            * width and height to be swap, Mat_x coordinate is y  and Mat_x is
+                            * measured from the other end so its 720 - x - w */
                         } //Test 01/09
                     }
                 }
