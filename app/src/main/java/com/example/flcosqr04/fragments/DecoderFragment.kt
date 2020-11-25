@@ -150,352 +150,353 @@ class DecoderFragment : Fragment() {
         do { // Loop to grab frames.
             try {
                 frame = frameG.grabFrame()
-                if (frame != null){
+                /*if (frame != null){
                     // When the rectangle is detected break this loop.
                     flc = detect(frame)
                     if (flc) {
                         break
                     }
-                }
+                }*/
             } catch (e : FrameGrabber.Exception){
                 Log.e("javacv", "Failed to grab frame: $e")
             }
-        } while (frame != null)
+        } while (frame == null) // !=null
 
         //Start of execution time
         val starTime = System.currentTimeMillis()
 
         //If the FLC is detected, continue to grab frames and decode.
-        if (flc){
+        //if (flc){ //START of if loop
             //Array of ResultPoints for detect the ROI (x,y,w,h)
-            val roi = Rect(crop[2],crop[3],crop[0],crop[1])
-            Log.i("Decode","ROI: ${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
-            /*Save previous frame value, check for the divide operator*/
-            //preMat.release()
-            preMat = Mat(converterToMat.convert(frame),roi)
-            cvtColor(preMat,preMat,COLOR_BGR2GRAY)
-            preMat = multiplyPut(preMat,0.5)
-            Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
-            /*Launch text change in the UI*/
-            scope.launch{
-                videoproc.text = getString(R.string.processing)
-            }
-            /*Add the creation of the previous frame. IMPORTANT: this copies the data in frame
-            * so if the process will be restarted (start from frame 0) take this into account.*/
+        //val roi = Rect(crop[2],crop[3],crop[0],crop[1])
+        val roi = Rect(args.roiX,args.roiY,args.roiW,args.roiH)
+        //Log.i("Decode","ROI: ${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
+        /*Save previous frame value, check for the divide operator*/
+        //preMat.release()
+        preMat = Mat(converterToMat.convert(frame),roi)
+        cvtColor(preMat,preMat,COLOR_BGR2GRAY)
+        preMat = multiplyPut(preMat,0.5)
+        Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
+        /*Launch text change in the UI*/
+        scope.launch{
+            videoproc.text = getString(R.string.processing)
+        }
+        /*Add the creation of the previous frame. IMPORTANT: this copies the data in frame
+        * so if the process will be restarted (start from frame 0) take this into account.*/
 
-            do {//Loop to grab all frames
-                try {
-                    frame = frameG.grabFrame()
-                    //Clear variables.
-                    //matGray.release()
-                    //frameMat.release()
-                    if (frame != null){
-                        //Conversions
-                        frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
-                        uses the first converterToMat object*/
-                        cvtColor(frameMat,matGray,COLOR_BGR2GRAY) //To Gray
+        do {//Loop to grab all frames
+            try {
+                frame = frameG.grabFrame()
+                //Clear variables.
+                //matGray.release()
+                //frameMat.release()
+                if (frame != null){
+                    //Conversions
+                    frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
+                    uses the first converterToMat object*/
+                    cvtColor(frameMat,matGray,COLOR_BGR2GRAY) //To Gray
 
-                        when (radio) {
-                            1 -> {
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    decodeQR(matGray,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    bitwise_not(matGray,matNeg)
-                                    decodeQR(matNeg,qrReader2)
-                                }
-                                noQR = (temp1.await() && temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by gray or negative")
-                                }
+                    when (radio) {
+                        1 -> {
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                decodeQR(matGray,qrReader1)
                             }
-                            2 -> {
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    equalizeHist(matGray,matEqP)
-                                    decodeQR(matEqP,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    bitwise_not(matGray,matNeg)
-                                    equalizeHist(matNeg,matEqN)
-                                    decodeQR(matEqN,qrReader2)
-                                }
-                                noQR = (temp1.await() && temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by equalised or equalised negative")
-                                }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                bitwise_not(matGray,matNeg)
+                                decodeQR(matNeg,qrReader2)
                             }
-                            3 -> {
-                                bilateralFilter(matGray,matBi,5,150.0,150.0)
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    decodeQR(matBi,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    bitwise_not(matBi,matNeg)
-                                    decodeQR(matNeg,qrReader2)
-                                }
-                                noQR = (temp1.await() && temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by bilateral")
-                                }
-                            }
-                            4 -> {
-                                halfMat = multiplyPut(matGray,0.5)
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    add(preMat,halfMat,matMean)
-                                    decodeQR(matMean,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    subtract(preMat,halfMat,matDiff)
-                                    decodeQR(matDiff,qrReader2)
-                                }
-                                noQR = (temp1.await() &&  temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by mean/diff")
-                                }
-                                preMat = multiplyPut(matGray,0.5)
-                            }
-                            5 -> {
-                                halfMat = multiplyPut(matGray,0.5)
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    add(preMat,halfMat,matMean)
-                                    bitwise_not(matMean,matMean)
-                                    decodeQR(matMean,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    subtract(preMat,halfMat,matDiff)
-                                    bitwise_not(matDiff,matDiff)
-                                    decodeQR(matDiff,qrReader2)
-                                }
-                                noQR = (temp1.await() && temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by negative mean/diff")
-                                }
-                                preMat = multiplyPut(matGray,0.5)
-                            }
-                            6 -> {
-                                halfMat = multiplyPut(matGray,0.5)
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    add(preMat,halfMat,matMean)
-                                    equalizeHist(matMean,matMean)
-                                    decodeQR(matMean,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    subtract(preMat,halfMat,matDiff)
-                                    equalizeHist(matDiff,matDiff)
-                                    decodeQR(matDiff,qrReader2)
-                                }
-                                noQR = (temp1.await() && temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by equalised mean/diff")
-                                }
-                                preMat = multiplyPut(matGray,0.5)
-                            }
-                            7 -> {
-                                halfMat = multiplyPut(matGray,0.5)
-                                val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    add(preMat,halfMat,matMean)
-                                    bitwise_not(matMean,matMean)
-                                    equalizeHist(matMean,matMean)
-                                    decodeQR(matMean,qrReader1)
-                                }
-                                val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
-                                    subtract(preMat,halfMat,matDiff)
-                                    bitwise_not(matDiff,matDiff)
-                                    equalizeHist(matDiff,matDiff)
-                                    decodeQR(matDiff,qrReader2)
-                                }
-                                noQR = (temp1.await() && temp2.await())
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by equalised-negative mean/diff")
-                                }
-                                preMat = multiplyPut(matGray,0.5)
-                            }
-                            8 -> {
-                                noQR =
-                                    withContext(Dispatchers.Default) {
-                                        val temp1 = async {
-                                            decodeQR(matGray,qrReaderGray)
-                                        }
-                                        val temp2 = async {
-                                            bitwise_not(matGray, matNeg)
-                                            decodeQR(matNeg,qrReaderNeg)
-                                        }
-                                        val temp3 = async {
-                                            equalizeHist(matGray, matEqP)
-                                            decodeQR(matEqP,qrReaderEqGray)
-                                        }
-                                        val temp4 = async {
-                                            bitwise_not(matGray, matEqN)
-                                            equalizeHist(matEqN, matEqN)
-                                            decodeQR(matEqN,qrReaderEqNeg)
-                                        }
-                                        (temp1.await() && temp2.await() && temp3.await() && temp4.await())
-                                    }
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by normal/equalised")
-                                }
-                            }
-                            9 -> {
-                                halfMat = multiplyPut(matGray.clone(), 0.5)
-                                noQR =
-                                    withContext(Dispatchers.Default) {//Added by Miguel 07/10
-                                        val temp1 = async {
-                                            decodeQR(matGray,qrReaderGray)
-                                        }
-                                        val temp2 = async {
-                                            bitwise_not(matGray, matNeg)
-                                            decodeQR(matNeg,qrReaderNeg)
-                                        }
-                                        val temp3 = async {
-                                            equalizeHist(matGray, matEqP)
-                                            decodeQR(matEqP,qrReaderEqGray)
-                                        }
-                                        val temp4 = async {
-                                            bitwise_not(matGray, matEqN)
-                                            equalizeHist(matEqN, matEqN)
-                                            decodeQR(matEqN,qrReaderEqNeg)
-                                        }
-                                        val temp5 = async {
-                                            add(preMat, halfMat, matMean)
-                                            decodeQR(matMean,qrReaderMean)
-                                        }
-                                        val temp6 = async {
-                                            //subtract(preMat, halfMat, matDiff) //Changed by Miguel 13/10
-                                            subtract(halfMat, preMat, matDiff)
-                                            decodeQR(matDiff,qrReaderDiff)
-                                        }
-                                        val temp7 = async {
-                                            add(preMat, halfMat, matMeanNeg)
-                                            bitwise_not(matMeanNeg, matMeanNeg)
-                                            decodeQR(matMeanNeg,qrReaderMeanNeg)
-                                        }
-                                        val temp8 = async {
-                                            //subtract(preMat, halfMat, matDiffNeg) //Changed by Miguel 13/10
-                                            subtract(halfMat, preMat, matDiffNeg)
-                                            bitwise_not(matDiffNeg, matDiffNeg)
-                                            decodeQR(matDiffNeg,qrReaderDiffNeg)
-                                        }
-                                        val temp9 = async {
-                                            add(preMat, halfMat, matEqMean)
-                                            equalizeHist(matEqMean, matEqMean)
-                                            decodeQR(matEqMean,qrReaderEqMean)
-                                        }
-                                        val temp10 = async {
-                                            //subtract(preMat, halfMat, matDiffNeg) //Changed by Miguel 13/10
-                                            subtract(halfMat, preMat, matEqDiff)
-                                            equalizeHist(matEqDiff, matEqDiff)
-                                            decodeQR(matEqDiff,qrReaderEqDiff)
-                                        }
-                                        val temp11 = async {
-                                            add(preMat, halfMat, matEqMeanNeg)
-                                            bitwise_not(matEqMeanNeg, matEqMeanNeg)
-                                            equalizeHist(matEqMeanNeg, matEqMeanNeg)
-                                            decodeQR(matEqMeanNeg,qrReaderEqMeanNeg)
-                                        }
-                                        val temp12 = async {
-                                            //subtract(preMat, halfMat, matDiffNeg) //Changed by Miguel 13/10
-                                            subtract(halfMat, preMat, matEqDiffNeg)
-                                            bitwise_not(matEqDiffNeg, matEqDiffNeg)
-                                            equalizeHist(matEqDiffNeg, matEqDiffNeg)
-                                            decodeQR(matEqDiffNeg,qrReaderEqDiffNeg)
-                                        }
-                                        (temp1.await() && temp2.await() && temp3.await() &&
-                                                temp4.await() && temp5.await() && temp6.await() &&
-                                                temp7.await() && temp8.await() && temp9.await() &&
-                                                temp10.await() && temp11.await() && temp12.await())
-                                    } //Added by Miguel 7/10
-                                if (!noQR) {
-                                    Log.i("QR Reader","Detected by any")
-                                }
-                                preMat = multiplyPut(matGray,0.5)
-                            }
-                            10 -> {
-                                val jobDecode = Job()
-                                val scopeDecode = CoroutineScope(jobDecode + Dispatchers.Default)
-                                halfMat = multiplyPut(matGray.clone(), 0.5)
-                                val tmp1 = scopeDecode.async {
-                                    decodeqr(matGray,qrReaderGray,this)
-                                }
-                                val tmp2 = scopeDecode.async {
-                                    bitwise_not(matGray, matNeg)
-                                    decodeqr(matNeg,qrReaderNeg,this)
-                                }
-                                val tmp3 = scopeDecode.async {
-                                    equalizeHist(matGray, matEqP)
-                                    decodeqr(matEqP,qrReaderEqGray,this)
-                                }
-                                val tmp4 = scopeDecode.async {
-                                    bitwise_not(matGray, matEqN)
-                                    equalizeHist(matEqN, matEqN)
-                                    decodeqr(matEqN,qrReaderEqNeg,this)
-                                }
-                                val tmp5 =scopeDecode.async {
-                                    add(preMat, halfMat, matMean)
-                                    decodeqr(matMean,qrReaderMean,this)
-                                }
-                                /*val tmp6 = scopeDecode.async {
-                                    subtract(halfMat, preMat, matDiff)
-                                    decodeqr(matDiff,qrReaderDiff,this)
-                                }*/
-                                val tmp7 = scopeDecode.async {
-                                    add(preMat, halfMat, matMeanNeg)
-                                    bitwise_not(matMeanNeg, matMeanNeg)
-                                    decodeqr(matMeanNeg,qrReaderMeanNeg,this)
-                                }  //Here app crashes for the OpenCV arithmetic
-                                /*val tmp8 = scopeDecode.async {
-                                    subtract(halfMat, preMat, matDiffNeg)
-                                    bitwise_not(matDiffNeg, matDiffNeg)
-                                    decodeqr(matDiffNeg,qrReaderDiffNeg,this)
-                                }*/
-                                val tmp9 = scopeDecode.async {
-                                    add(preMat, halfMat, matEqMean)
-                                    equalizeHist(matEqMean, matEqMean)
-                                    decodeqr(matEqMean,qrReaderEqMean,this)
-                                }
-                                /*val tmp10 = scopeDecode.async {
-                                    subtract(halfMat, preMat, matEqDiff)
-                                    equalizeHist(matEqDiff, matEqDiff)
-                                    decodeqr(matEqDiff,qrReaderEqDiff,this)
-                                }*/
-                                val tmp11 = scopeDecode.async {
-                                    add(preMat, halfMat, matEqMeanNeg)
-                                    bitwise_not(matEqMeanNeg, matEqMeanNeg)
-                                    equalizeHist(matEqMeanNeg, matEqMeanNeg)
-                                    decodeqr(matEqMeanNeg,qrReaderEqMeanNeg,this)
-                                }
-                                /*val tmp12 = scopeDecode.async {
-                                    subtract(halfMat, preMat, matEqDiffNeg)
-                                    bitwise_not(matEqDiffNeg, matEqDiffNeg)
-                                    equalizeHist(matEqDiffNeg, matEqDiffNeg)
-                                    decodeqr(matEqDiffNeg,qrReaderEqDiffNeg,this)
-                                }*/
-                                preMat = multiplyPut(matGray,0.5)
-                                try {
-                                    noQR = (tmp1.await() && tmp2.await() && tmp3.await() &&
-                                            tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
-                                            tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
-                                            /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
-                                } catch (e: CancellationException) {
-                                    //Log.i("decodeScope","Exception: $e")
-                                }
-                                /*while (scopeDecode.isActive) {
-                                    Log.i("ScopeDecode","Active")
-                                }*/
+                            noQR = (temp1.await() && temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by gray or negative")
                             }
                         }
-                        totalFrames += 1
+                        2 -> {
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                equalizeHist(matGray,matEqP)
+                                decodeQR(matEqP,qrReader1)
+                            }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                bitwise_not(matGray,matNeg)
+                                equalizeHist(matNeg,matEqN)
+                                decodeQR(matEqN,qrReader2)
+                            }
+                            noQR = (temp1.await() && temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by equalised or equalised negative")
+                            }
+                        }
+                        3 -> {
+                            bilateralFilter(matGray,matBi,5,150.0,150.0)
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                decodeQR(matBi,qrReader1)
+                            }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                bitwise_not(matBi,matNeg)
+                                decodeQR(matNeg,qrReader2)
+                            }
+                            noQR = (temp1.await() && temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by bilateral")
+                            }
+                        }
+                        4 -> {
+                            halfMat = multiplyPut(matGray,0.5)
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                add(preMat,halfMat,matMean)
+                                decodeQR(matMean,qrReader1)
+                            }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                subtract(preMat,halfMat,matDiff)
+                                decodeQR(matDiff,qrReader2)
+                            }
+                            noQR = (temp1.await() &&  temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by mean/diff")
+                            }
+                            preMat = multiplyPut(matGray,0.5)
+                        }
+                        5 -> {
+                            halfMat = multiplyPut(matGray,0.5)
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                add(preMat,halfMat,matMean)
+                                bitwise_not(matMean,matMean)
+                                decodeQR(matMean,qrReader1)
+                            }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                subtract(preMat,halfMat,matDiff)
+                                bitwise_not(matDiff,matDiff)
+                                decodeQR(matDiff,qrReader2)
+                            }
+                            noQR = (temp1.await() && temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by negative mean/diff")
+                            }
+                            preMat = multiplyPut(matGray,0.5)
+                        }
+                        6 -> {
+                            halfMat = multiplyPut(matGray,0.5)
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                add(preMat,halfMat,matMean)
+                                equalizeHist(matMean,matMean)
+                                decodeQR(matMean,qrReader1)
+                            }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                subtract(preMat,halfMat,matDiff)
+                                equalizeHist(matDiff,matDiff)
+                                decodeQR(matDiff,qrReader2)
+                            }
+                            noQR = (temp1.await() && temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by equalised mean/diff")
+                            }
+                            preMat = multiplyPut(matGray,0.5)
+                        }
+                        7 -> {
+                            halfMat = multiplyPut(matGray,0.5)
+                            val temp1 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                add(preMat,halfMat,matMean)
+                                bitwise_not(matMean,matMean)
+                                equalizeHist(matMean,matMean)
+                                decodeQR(matMean,qrReader1)
+                            }
+                            val temp2 = (CoroutineScope(Dispatchers.Default + Job())).async {
+                                subtract(preMat,halfMat,matDiff)
+                                bitwise_not(matDiff,matDiff)
+                                equalizeHist(matDiff,matDiff)
+                                decodeQR(matDiff,qrReader2)
+                            }
+                            noQR = (temp1.await() && temp2.await())
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by equalised-negative mean/diff")
+                            }
+                            preMat = multiplyPut(matGray,0.5)
+                        }
+                        8 -> {
+                            noQR =
+                                withContext(Dispatchers.Default) {
+                                    val temp1 = async {
+                                        decodeQR(matGray,qrReaderGray)
+                                    }
+                                    val temp2 = async {
+                                        bitwise_not(matGray, matNeg)
+                                        decodeQR(matNeg,qrReaderNeg)
+                                    }
+                                    val temp3 = async {
+                                        equalizeHist(matGray, matEqP)
+                                        decodeQR(matEqP,qrReaderEqGray)
+                                    }
+                                    val temp4 = async {
+                                        bitwise_not(matGray, matEqN)
+                                        equalizeHist(matEqN, matEqN)
+                                        decodeQR(matEqN,qrReaderEqNeg)
+                                    }
+                                    (temp1.await() && temp2.await() && temp3.await() && temp4.await())
+                                }
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by normal/equalised")
+                            }
+                        }
+                        9 -> {
+                            halfMat = multiplyPut(matGray.clone(), 0.5)
+                            noQR =
+                                withContext(Dispatchers.Default) {//Added by Miguel 07/10
+                                    val temp1 = async {
+                                        decodeQR(matGray,qrReaderGray)
+                                    }
+                                    val temp2 = async {
+                                        bitwise_not(matGray, matNeg)
+                                        decodeQR(matNeg,qrReaderNeg)
+                                    }
+                                    val temp3 = async {
+                                        equalizeHist(matGray, matEqP)
+                                        decodeQR(matEqP,qrReaderEqGray)
+                                    }
+                                    val temp4 = async {
+                                        bitwise_not(matGray, matEqN)
+                                        equalizeHist(matEqN, matEqN)
+                                        decodeQR(matEqN,qrReaderEqNeg)
+                                    }
+                                    val temp5 = async {
+                                        add(preMat, halfMat, matMean)
+                                        decodeQR(matMean,qrReaderMean)
+                                    }
+                                    val temp6 = async {
+                                        //subtract(preMat, halfMat, matDiff) //Changed by Miguel 13/10
+                                        subtract(halfMat, preMat, matDiff)
+                                        decodeQR(matDiff,qrReaderDiff)
+                                    }
+                                    val temp7 = async {
+                                        add(preMat, halfMat, matMeanNeg)
+                                        bitwise_not(matMeanNeg, matMeanNeg)
+                                        decodeQR(matMeanNeg,qrReaderMeanNeg)
+                                    }
+                                    val temp8 = async {
+                                        //subtract(preMat, halfMat, matDiffNeg) //Changed by Miguel 13/10
+                                        subtract(halfMat, preMat, matDiffNeg)
+                                        bitwise_not(matDiffNeg, matDiffNeg)
+                                        decodeQR(matDiffNeg,qrReaderDiffNeg)
+                                    }
+                                    val temp9 = async {
+                                        add(preMat, halfMat, matEqMean)
+                                        equalizeHist(matEqMean, matEqMean)
+                                        decodeQR(matEqMean,qrReaderEqMean)
+                                    }
+                                    val temp10 = async {
+                                        //subtract(preMat, halfMat, matDiffNeg) //Changed by Miguel 13/10
+                                        subtract(halfMat, preMat, matEqDiff)
+                                        equalizeHist(matEqDiff, matEqDiff)
+                                        decodeQR(matEqDiff,qrReaderEqDiff)
+                                    }
+                                    val temp11 = async {
+                                        add(preMat, halfMat, matEqMeanNeg)
+                                        bitwise_not(matEqMeanNeg, matEqMeanNeg)
+                                        equalizeHist(matEqMeanNeg, matEqMeanNeg)
+                                        decodeQR(matEqMeanNeg,qrReaderEqMeanNeg)
+                                    }
+                                    val temp12 = async {
+                                        //subtract(preMat, halfMat, matDiffNeg) //Changed by Miguel 13/10
+                                        subtract(halfMat, preMat, matEqDiffNeg)
+                                        bitwise_not(matEqDiffNeg, matEqDiffNeg)
+                                        equalizeHist(matEqDiffNeg, matEqDiffNeg)
+                                        decodeQR(matEqDiffNeg,qrReaderEqDiffNeg)
+                                    }
+                                    (temp1.await() && temp2.await() && temp3.await() &&
+                                            temp4.await() && temp5.await() && temp6.await() &&
+                                            temp7.await() && temp8.await() && temp9.await() &&
+                                            temp10.await() && temp11.await() && temp12.await())
+                                } //Added by Miguel 7/10
+                            if (!noQR) {
+                                Log.i("QR Reader","Detected by any")
+                            }
+                            preMat = multiplyPut(matGray,0.5)
+                        }
+                        10 -> {
+                            val jobDecode = Job()
+                            val scopeDecode = CoroutineScope(jobDecode + Dispatchers.Default)
+                            halfMat = multiplyPut(matGray.clone(), 0.5)
+                            val tmp1 = scopeDecode.async {
+                                decodeqr(matGray,qrReaderGray,this)
+                            }
+                            val tmp2 = scopeDecode.async {
+                                bitwise_not(matGray, matNeg)
+                                decodeqr(matNeg,qrReaderNeg,this)
+                            }
+                            val tmp3 = scopeDecode.async {
+                                equalizeHist(matGray, matEqP)
+                                decodeqr(matEqP,qrReaderEqGray,this)
+                            }
+                            val tmp4 = scopeDecode.async {
+                                bitwise_not(matGray, matEqN)
+                                equalizeHist(matEqN, matEqN)
+                                decodeqr(matEqN,qrReaderEqNeg,this)
+                            }
+                            val tmp5 =scopeDecode.async {
+                                add(preMat, halfMat, matMean)
+                                decodeqr(matMean,qrReaderMean,this)
+                            }
+                            /*val tmp6 = scopeDecode.async {
+                                subtract(halfMat, preMat, matDiff)
+                                decodeqr(matDiff,qrReaderDiff,this)
+                            }*/
+                            val tmp7 = scopeDecode.async {
+                                add(preMat, halfMat, matMeanNeg)
+                                bitwise_not(matMeanNeg, matMeanNeg)
+                                decodeqr(matMeanNeg,qrReaderMeanNeg,this)
+                            }  //Here app crashes for the OpenCV arithmetic
+                            /*val tmp8 = scopeDecode.async {
+                                subtract(halfMat, preMat, matDiffNeg)
+                                bitwise_not(matDiffNeg, matDiffNeg)
+                                decodeqr(matDiffNeg,qrReaderDiffNeg,this)
+                            }*/
+                            val tmp9 = scopeDecode.async {
+                                add(preMat, halfMat, matEqMean)
+                                equalizeHist(matEqMean, matEqMean)
+                                decodeqr(matEqMean,qrReaderEqMean,this)
+                            }
+                            /*val tmp10 = scopeDecode.async {
+                                subtract(halfMat, preMat, matEqDiff)
+                                equalizeHist(matEqDiff, matEqDiff)
+                                decodeqr(matEqDiff,qrReaderEqDiff,this)
+                            }*/
+                            val tmp11 = scopeDecode.async {
+                                add(preMat, halfMat, matEqMeanNeg)
+                                bitwise_not(matEqMeanNeg, matEqMeanNeg)
+                                equalizeHist(matEqMeanNeg, matEqMeanNeg)
+                                decodeqr(matEqMeanNeg,qrReaderEqMeanNeg,this)
+                            }
+                            /*val tmp12 = scopeDecode.async {
+                                subtract(halfMat, preMat, matEqDiffNeg)
+                                bitwise_not(matEqDiffNeg, matEqDiffNeg)
+                                equalizeHist(matEqDiffNeg, matEqDiffNeg)
+                                decodeqr(matEqDiffNeg,qrReaderEqDiffNeg,this)
+                            }*/
+                            preMat = multiplyPut(matGray,0.5)
+                            try {
+                                noQR = (tmp1.await() && tmp2.await() && tmp3.await() &&
+                                        tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
+                                        tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
+                                        /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
+                            } catch (e: CancellationException) {
+                                //Log.i("decodeScope","Exception: $e")
+                            }
+                            /*while (scopeDecode.isActive) {
+                                Log.i("ScopeDecode","Active")
+                            }*/
+                        }
                     }
-                } catch (e : FrameGrabber.Exception){
-                    Log.e("javacv", "Failed to grab frame: $e")
+                    totalFrames += 1
                 }
-            } while (frame != null)
-        } else {
+            } catch (e : FrameGrabber.Exception){
+                Log.e("javacv", "Failed to grab frame: $e")
+            }
+        } while (frame != null)
+        /*} else { //END of if loop
             //if the display is not detected, display a message in the UI.
             Log.i("FLC","Display not detected")
             scope.launch(Dispatchers.Main){
                 videoproc.text = getString(R.string.nonedetected)
             }
-        }
+        }*/
 
         try {//Stop FrameGrabber
             frameG.stop()

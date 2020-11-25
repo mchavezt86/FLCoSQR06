@@ -2,7 +2,11 @@ package com.example.flcosqr04
 
 import android.graphics.Bitmap
 import android.media.Image
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
+import android.view.PixelCopy
+import com.example.android.camera.utils.AutoFitSurfaceView
 import org.bytedeco.opencv.global.opencv_core.CV_8UC1
 import org.bytedeco.opencv.global.opencv_imgproc.*
 import org.bytedeco.opencv.opencv_core.Mat
@@ -146,7 +150,8 @@ class ImageProcess {
          * than 16/9 or 4/3
          * Input: Bitmap
          * Output: Rect (if the area is detected) or null if nothing is detected.*/
-        fun detectROI(bmp : Bitmap) : Rect? {
+        fun detectROI(bmp : Bitmap?) : Rect? {
+            //Log.i("detectROI","I was called.")
             val frameConvert = AndroidFrameConverter()
             val matConvert = OpenCVFrameConverter.ToMat()
             val mat = matConvert.convertToMat(frameConvert.convert(bmp))
@@ -179,24 +184,24 @@ class ImageProcess {
 
             /*Main for loop allows iteration. Contours.get(index) returns a Mat which holds the contour
             * points.*/
-            for (i in 0 until contours.size()){
+            loop@ for (i in 0 until contours.size()){
                 cnt = contours.get(i)
                 points = Mat() //Polygon points
                 /*This function approximates each contour to a polygon. Parameters: source, destination,
-                * epsilon, closed polygon?. Epsilon: approximation accuracy. */
+                        * epsilon, closed polygon?. Epsilon: approximation accuracy. */
                 approxPolyDP(cnt,points, 0.01*arcLength(cnt,true),true)
 
                 /*The polygon approximation returns a Mat (name 'points'). The structure of this Mat is
-                * width = 1, height = number of vertices, channels = 2 (possibly coordinates).
-                * The steps from here are:
-                *- Select polygons with 4 corners
-                *- Select only polygons which are large enough in size.
-                *- Calculate a bounding rectangle for the polygon, for the FLC should be the actual FLC
-                *  area, thus the aspect ratio of this rectangle should be known.
-                *- Lastly, filter the rectangle based on its area not too big in size and have an aspect
-                *  ration between 0.5 and 2. We cannot tell if the rectangle is rotated but the aspect
-                *  ratio of the FLC is 16/9 = 1.7 or 9/16 = 0.56. However, if the FLC and the phone are
-                *  not parallel, the FLC might be a square. */
+                        * width = 1, height = number of vertices, channels = 2 (possibly coordinates).
+                        * The steps from here are:
+                        *- Select polygons with 4 corners
+                        *- Select only polygons which are large enough in size.
+                        *- Calculate a bounding rectangle for the polygon, for the FLC should be the actual FLC
+                        *  area, thus the aspect ratio of this rectangle should be known.
+                        *- Lastly, filter the rectangle based on its area not too big in size and have an aspect
+                        *  ration between 0.5 and 2. We cannot tell if the rectangle is rotated but the aspect
+                        *  ratio of the FLC is 16/9 = 1.7 or 9/16 = 0.56. However, if the FLC and the phone are
+                        *  not parallel, the FLC might be a square. */
                 if (points.size().height()==4){
                     if(contourArea(cnt) > minArea){ //Only large polygons.
                         rect = boundingRect(cnt)
@@ -208,12 +213,50 @@ class ImageProcess {
                             finalRect = rect
                             Log.i("FLC","w=${finalRect.width()},h=${finalRect.height()}," +
                                     "x=${finalRect.x()},y=${finalRect.y()}")
-                            break // break 'contours' for loop.
+                            break@loop // break 'contours' for loop.
                         }
                     }
                 }
             }
             return finalRect
+        }
+
+        /**Function to:
+         * Pixel copy to copy SurfaceView/VideoView into BitMap
+         * Work with Surface View, Video View
+         * Won't work on Normal View
+         * Modified from:
+         * https://medium.com/@hiteshkrsahu/a-complete-guide-for-taking-screenshot-in-android-28-bcb9a19a2b6e
+         * Input: AutoFitSurfaceView (preview from the camera), Bitmap (same size as the camera
+         * resolution, thus same size as resulting Mat from it.
+         * Output: None
+         * Callback: Do something with the Bitmap.
+         */
+        fun getBitMapFromSurfaceView(videoView: AutoFitSurfaceView, bitmap: Bitmap, callback: (Bitmap?) -> Unit) {
+            /*val bitmap: Bitmap = Bitmap.createBitmap(
+                videoView.width,
+                videoView.height,
+                Bitmap.Config.ARGB_8888
+            );*/
+            try {
+                // Create a handler thread to offload the processing of the image.
+                val handlerThread = HandlerThread("PixelCopier");
+                handlerThread.start();
+                PixelCopy.request(
+                    videoView.holder.surface, bitmap,
+                    { copyResult ->
+                        if (copyResult == PixelCopy.SUCCESS) {
+                            callback(bitmap)
+                        }
+                        handlerThread.quitSafely();
+                    },
+                    Handler(handlerThread.looper)
+                )
+            } catch (e: IllegalArgumentException) {
+                callback(null)
+                // PixelCopy may throw IllegalArgumentException, make sure to handle it
+                e.printStackTrace()
+            }
         }
     }
 }

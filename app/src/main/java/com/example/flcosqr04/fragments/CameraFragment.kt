@@ -5,18 +5,17 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
-import android.hardware.camera2.params.MeteringRectangle
 import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.media.MediaScannerConnection
+import android.opengl.Visibility
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -25,7 +24,9 @@ import android.util.Log
 import android.util.Range
 import android.util.Size
 import android.view.*
+import android.widget.Button
 import androidx.constraintlayout.solver.widgets.Rectangle
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -36,10 +37,6 @@ import com.example.android.camera.utils.*
 import com.example.flcosqr04.R
 import com.example.flcosqr04.BuildConfig
 import com.example.flcosqr04.MainActivity //must match our main root activity class
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -50,7 +47,10 @@ import androidx.lifecycle.Observer
 import kotlinx.android.synthetic.main.fragment_camera.*
 import com.example.flcosqr04.ImageProcess
 import androidx.core.graphics.createBitmap
+import kotlinx.coroutines.*
+import org.bytedeco.javacpp.annotation.Const
 import org.bytedeco.opencv.opencv_core.Rect
+import java.lang.Runnable
 
 class CameraFragment : Fragment()  {
 
@@ -246,17 +246,9 @@ class CameraFragment : Fragment()  {
                 // To ensure that size is set, initialize camera in the view's thread
                 viewFinder.post { initializeCamera() }
                 //Added by Miguel 24-11
-                bmpSurf = createBitmap(previewSize.width,previewSize.height)
-                /*lifecycleScope.launch(Dispatchers.Default){
-                    delay(4000)
-                    //val bmpSurf = createBitmap(previewSize.width,previewSize.height)
-                    PixelCopy.request(viewFinder.holder.surface,bmpSurf,
-                        {copyResult ->
-                            run {
-                                Log.i("PixelCopy", copyResult.toString())
-                                }
-                        }, cameraHandler)
-                }*/
+                /*Bitmap of the same size as the camera resolution (thus the resulting OpenCV Mat
+                * to process and find the ROI from the preview. */
+                bmpSurf = createBitmap(previewSize.height,previewSize.width)
             }
         })
 
@@ -375,21 +367,30 @@ class CameraFragment : Fragment()  {
         session.setRepeatingBurst(previewRequestList, null, cameraHandler)
 
         //Added by Miguel
-        lifecycleScope.launch(Dispatchers.Default){
-            delay(3000)
-            do {
-                PixelCopy.request(viewFinder.holder.surface,bmpSurf,
-                    {copyResult ->
-                        run {
-                            if (copyResult == PixelCopy.SUCCESS) {
-                                rectROI = ImageProcess.detectROI(bmpSurf)
-                            }
-                        }
-                    }, cameraHandler)
-            } while (rectROI == null)
-            Log.i("ROI","x:${rectROI!!.x()}, y:${rectROI!!.y()}, w:${rectROI!!.width()}," +
-                    "h:${rectROI!!.height()}")
-        }
+        /*Code to find the ROI in the preview:
+        * NOTE: The ImageReader (and its listener) is more suitable for this but for Constrained
+        * High Speed Capture Session does not allow an ImageReader surface, only Preview and
+        * Recorder Surfaces */
+        delay(3000) /*Wait for camera to open and start*/
+        do {
+            ImageProcess.getBitMapFromSurfaceView(viewFinder,bmpSurf){ bitmap : Bitmap? ->
+                rectROI = ImageProcess.detectROI(bitmap)
+            }
+            delay(1500) /*Period between each try to find the ROI. If delay is too short
+             the program might run out of memory as this process does not wait for a new image
+             available, it just reads the current pixels from the surface. */
+        } while (rectROI == null)
+        Log.i("ROI","x:${rectROI!!.x()}, y:${rectROI!!.y()}, w:${rectROI!!.width()}," +
+                "h:${rectROI!!.height()}")
+        /*Set the ROI View parameters to be displayed in the camera surface*/
+        roiRectView.x = (rectROI!!.x() * viewFinder.width / bmpSurf.width).toFloat()
+        roiRectView.y = (rectROI!!.y() * viewFinder.height / bmpSurf.height).toFloat()
+        roiRectView.layoutParams = ConstraintLayout.LayoutParams(
+            rectROI!!.width() * viewFinder.width / bmpSurf.width,
+            rectROI!!.height() * viewFinder.height / bmpSurf.height)
+        roiRectView.visibility = View.VISIBLE
+        /*Set the capture_button visible*/
+        capture_button.visibility = Button.VISIBLE
 
         // Listen to the capture button
         capture_button.setOnTouchListener { view, event ->
@@ -470,7 +471,8 @@ class CameraFragment : Fragment()  {
                         Handler(Looper.getMainLooper()).post {
                             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                                 .navigate(CameraFragmentDirections.actionCameraToDecoder(
-                                    "$outputFile"))
+                                    "$outputFile",rectROI!!.x(),rectROI!!.y(),
+                                rectROI!!.width(),rectROI!!.height()))
                         } //Test 01/09
                     }
                 }
@@ -552,6 +554,7 @@ class CameraFragment : Fragment()  {
                 .navigate(SelectorFragmentDirections.actionSelectorToDecoder("$outputFile"))
         }*/
         //imgRdrROI.close() //Miguel 23-11
+
     }
 
     override fun onDestroy() {

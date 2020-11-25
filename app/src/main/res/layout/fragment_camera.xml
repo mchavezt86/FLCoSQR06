@@ -42,6 +42,7 @@
         android:background="@drawable/ic_shutter"
         android:contentDescription="@string/capture"
         android:scaleType="fitCenter"
+        android:visibility="invisible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent" />

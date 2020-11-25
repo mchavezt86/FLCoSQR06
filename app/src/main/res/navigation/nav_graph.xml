@@ -62,5 +62,16 @@
         <action
             android:id="@+id/action_decoder_to_permissions"
             app:destination="@id/permissionsFragment" />
+        <argument
+            android:name="roiX"
+            app:argType="integer" />
+        <argument android:name="roiY"
+            app:argType="integer" />
+        <argument
+            android:name="roiW"
+            app:argType="integer" />
+        <argument
+            android:name="roiH"
+            app:argType="integer" />
     </fragment>
 </navigation>
