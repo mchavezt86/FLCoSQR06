@@ -47,6 +47,8 @@ import androidx.lifecycle.Observer
 import kotlinx.android.synthetic.main.fragment_camera.*
 import com.example.flcosqr04.ImageProcess
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
+import androidx.core.view.drawToBitmap
 import kotlinx.coroutines.*
 import org.bytedeco.javacpp.annotation.Const
 import org.bytedeco.opencv.opencv_core.Rect
@@ -338,6 +340,8 @@ class CameraFragment : Fragment()  {
         var record : Boolean = false
         //24-11
         var rectROI : Rect? = null
+        //
+        val previewSize = Size(bmpSurf.width,bmpSurf.height)
 
         //Miguel 23-11
         //Set the listener for the ImageReader to detect the ROI.
@@ -373,8 +377,10 @@ class CameraFragment : Fragment()  {
         * Recorder Surfaces */
         delay(3000) /*Wait for camera to open and start*/
         do {
+            /*Get the Surface into a Bitmap. Cannot use View.drawToBitmap because it saves the View
+            * but not the camera image displayed*/
             ImageProcess.getBitMapFromSurfaceView(viewFinder,bmpSurf){ bitmap : Bitmap? ->
-                rectROI = ImageProcess.detectROI(bitmap)
+                if (rectROI == null) rectROI = ImageProcess.detectROI(bitmap)
             }
             delay(1500) /*Period between each try to find the ROI. If delay is too short
              the program might run out of memory as this process does not wait for a new image
@@ -383,11 +389,11 @@ class CameraFragment : Fragment()  {
         Log.i("ROI","x:${rectROI!!.x()}, y:${rectROI!!.y()}, w:${rectROI!!.width()}," +
                 "h:${rectROI!!.height()}")
         /*Set the ROI View parameters to be displayed in the camera surface*/
-        roiRectView.x = (rectROI!!.x() * viewFinder.width / bmpSurf.width).toFloat()
-        roiRectView.y = (rectROI!!.y() * viewFinder.height / bmpSurf.height).toFloat()
+        roiRectView.x = (rectROI!!.x() * viewFinder.width / previewSize.width).toFloat()
+        roiRectView.y = (rectROI!!.y() * viewFinder.height / previewSize.height).toFloat()
         roiRectView.layoutParams = ConstraintLayout.LayoutParams(
-            rectROI!!.width() * viewFinder.width / bmpSurf.width,
-            rectROI!!.height() * viewFinder.height / bmpSurf.height)
+            rectROI!!.width() * viewFinder.width / previewSize.width,
+            rectROI!!.height() * viewFinder.height / previewSize.height)
         roiRectView.visibility = View.VISIBLE
         /*Set the capture_button visible*/
         capture_button.visibility = Button.VISIBLE
@@ -468,10 +474,10 @@ class CameraFragment : Fragment()  {
                         //mainActivity.video = "$outputFile" // Added by Miguel 28/08
                         delay(MainActivity.ANIMATION_SLOW_MILLIS)
                         //navController.popBackStack()
-                        Handler(Looper.getMainLooper()).post {
+                        Handler(Looper.getMainLooper()).post {/**Maybe disable button?*/
                             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                                 .navigate(CameraFragmentDirections.actionCameraToDecoder(
-                                    "$outputFile",rectROI!!.y(),bmpSurf.width -
+                                    "$outputFile",rectROI!!.y(),previewSize.width -
                                             rectROI!!.x() - rectROI!!.width(),rectROI!!.height(),
                                     rectROI!!.width()))
                             /*The actual values of the ROI rectangle needed for OpenCV Mat requires

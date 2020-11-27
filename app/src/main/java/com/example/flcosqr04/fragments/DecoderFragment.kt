@@ -21,7 +21,6 @@ import org.bytedeco.javacv.*
 import org.bytedeco.opencv.global.opencv_core.*
 import org.bytedeco.opencv.global.opencv_imgproc.*
 import org.bytedeco.opencv.opencv_core.Mat
-import org.bytedeco.opencv.opencv_core.MatVector
 import org.bytedeco.opencv.opencv_core.Rect
 import java.lang.StringBuilder
 import java.util.*
@@ -96,6 +95,42 @@ class DecoderFragment : Fragment() {
     //private val erasure = BooleanArray(RS_TOTAL_SIZE){false}
     private val erasure : BooleanArray by lazy { BooleanArray(RS_TOTAL_SIZE){false} }
 
+    //Saving each Mat after grab a frame and apply the ROI mask.
+    private val roiMat = ConcurrentLinkedDeque<Mat>()
+
+    /*List of timers to figure the execution time profile:
+    * [0]: Grab frame total time
+    * [1]: DSP + QR detection total time
+    * [2]: RS total time*/
+    private val timers = arrayListOf(0L, 0L, 0L)
+
+    /*Function to grab frame by frame from a video file using the FFmpeg package, apply the mask
+    * using the ROI from the CameraFragment and stores the result in a concurrent queue.
+    * Input: String : video file path and name
+    * Output: None
+    * Modifies the ConcurrentLinkedDeque roiMat*/
+    private suspend fun grabROI(videoFile: String) = withContext(Dispatchers.IO){
+        val frameG = FFmpegFrameGrabber(videoFile)
+        var frame : Frame?
+        val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
+        var matROI = Mat()
+
+        try {//Start FrameGrabber
+            frameG.start()
+        } catch (e : FrameGrabber.Exception) {
+            Log.e("javacv", "Failed to start FrameGrabber: $e")
+        }
+
+        for (i in 0 until frameG.lengthInVideoFrames ) {
+            try {
+                frame = frameG.grabFrame()
+            } catch (e : FrameGrabber.Exception){
+                Log.e("javacv", "Failed to grab frame: $e")
+            }
+        }
+
+    }
+
     /*Function to decode sequence by grabbing frame by frame from a video file using the FFmpeg
     * package. Then, using JavaCV's OpenCV package, the frames are image-processed before calling
     * the QR decoder from the Zxing package
@@ -130,7 +165,7 @@ class DecoderFragment : Fragment() {
         var flc = false
 
         //Start of execution time
-        //val starTime = System.currentTimeMillis()
+        val starTime = System.currentTimeMillis()
 
         try {//Start FrameGrabber
             frameG.start()
@@ -164,7 +199,8 @@ class DecoderFragment : Fragment() {
         } while (frame == null) // !=null
 
         //Start of execution time
-        val starTime = System.currentTimeMillis()
+        //val starTime = System.currentTimeMillis()
+        timers[0]+=System.currentTimeMillis()-starTime
 
         //If the FLC is detected, continue to grab frames and decode.
         //if (flc){ //START of if loop
@@ -186,12 +222,15 @@ class DecoderFragment : Fragment() {
         * so if the process will be restarted (start from frame 0) take this into account.*/
 
         do {//Loop to grab all frames
+            val grabFlag = System.currentTimeMillis() /*flag to get grab execution time*/
             try {
                 frame = frameG.grabFrame()
+                timers[0]+=System.currentTimeMillis()-grabFlag
                 //Clear variables.
                 //matGray.release()
                 //frameMat.release()
                 if (frame != null){
+                    val dspNDecodeFlag = System.currentTimeMillis()
                     //Conversions
                     frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
                     uses the first converterToMat object*/
@@ -485,6 +524,7 @@ class DecoderFragment : Fragment() {
                             }*/
                         }
                     }
+                    timers[1]+=System.currentTimeMillis()-dspNDecodeFlag
                     totalFrames += 1
                 }
             } catch (e : FrameGrabber.Exception){
@@ -505,7 +545,7 @@ class DecoderFragment : Fragment() {
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
 
-        /*Print length of the data and tge data received. Received is in a ConcurrentLinkedQueue
+        /*Print length of the data and the data received. Received is in a ConcurrentLinkedQueue
         * (rxData) which is added to a MutableList (data)*/
         Log.i("Data","Length ${rxData.size}")
         try {
@@ -515,7 +555,7 @@ class DecoderFragment : Fragment() {
         }
 
         //End of execution time.
-        val endTime = System.currentTimeMillis()
+        //val endTime = System.currentTimeMillis()
 
         //Variables and processes to create results.
         val resultString = StringBuilder()
@@ -523,6 +563,8 @@ class DecoderFragment : Fragment() {
 
         //Order binary data.
         orderByteData()
+
+        val rsFlag = System.currentTimeMillis()
         /*Apply Reed Solomon, inside a try-catch:
         * Try to perform the Reed Solomon decoding and modify the text using the StringBuilder. If
         * the decoding fails the StringBuilder shows an error message.*/
@@ -535,6 +577,16 @@ class DecoderFragment : Fragment() {
             Log.e("RS",e.message)
             resultString.append("Error during Reed Solomon decoding.")
         }
+
+        //End of execution time.
+        val endTime = System.currentTimeMillis()
+
+        timers[2]+=endTime-rsFlag
+
+        Log.i("Timers","Grab frame time: ${timers[0]} ms.")
+        Log.i("Timers","DSP and QR decode time: ${timers[1]} ms.")
+        Log.i("Timers","Reed Solomon time: ${timers[2]} ms.")
+
         //Display results in the UI.
         scope.launch(Dispatchers.Main){
             totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())

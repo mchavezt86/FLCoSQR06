@@ -151,10 +151,11 @@ class ImageProcess {
          * Input: Bitmap
          * Output: Rect (if the area is detected) or null if nothing is detected.*/
         fun detectROI(bmp : Bitmap?) : Rect? {
-            //Log.i("detectROI","I was called.")
+            //og.i("detectROI","I was called. Bitmap: w=${bmp?.width}, h=${bmp?.height}")
             val frameConvert = AndroidFrameConverter()
             val matConvert = OpenCVFrameConverter.ToMat()
             val mat = matConvert.convertToMat(frameConvert.convert(bmp))
+            //bmp!!.recycle() //Release Bitmap from memory
             cvtColor(mat,mat, COLOR_BGR2GRAY) //Convert to GrayScale
             val binSize = mat.size().height()/2-1 //bin size for the binarisation
             //Constants for the area size
@@ -253,7 +254,7 @@ class ImageProcess {
                     Handler(handlerThread.looper)
                 )
             } catch (e: IllegalArgumentException) {
-                callback(null)
+                callback(bitmap)
                 // PixelCopy may throw IllegalArgumentException, make sure to handle it
                 e.printStackTrace()
             }
