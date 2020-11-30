@@ -75,8 +75,10 @@ class DecoderFragment : Fragment() {
     private val jobIO = Job()
     private val scopeGrab = CoroutineScope(jobIO + Dispatchers.IO)
     //Added by Miguel 24/10: Dispatcher for launching decode coroutines
-    /*private val jobDecode = Job()
-    private val scopeDecode = CoroutineScope(jobDecode + Dispatchers.Default)*/
+    /*Define a Scope and a Job to launch the async task of processing the images and decode the QRs.
+    * Both the Scope and the Job could be use to cancel the whole process.*/
+    private val outerJobDecode = Job()
+    private val outerScopeDecode = CoroutineScope(Dispatchers.Default + outerJobDecode)
 
     //Added by Miguel 10/09: Variables for unique QR counting
     private lateinit var qrString : String
@@ -136,7 +138,7 @@ class DecoderFragment : Fragment() {
     * the QR decoder from the Zxing package
     * Input: String : video file path and name
     * Output: None : QR results are printed in the console */
-    private suspend fun decode(videoFile : String, radio : Int) = withContext(Dispatchers.Default) {
+    private suspend fun decode(videoFile : String, radio : Int) = withContext(scope.coroutineContext) {
         //Variables to get frames: FrameGrabber, Frame
         val frameG = FFmpegFrameGrabber(videoFile)
         var frame : Frame?
@@ -216,7 +218,7 @@ class DecoderFragment : Fragment() {
         Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
         /*Launch text change in the UI*/
         scope.launch{
-            videoproc.text = getString(R.string.processing)
+        videoproc.text = getString(R.string.processing)
         }
         /*Add the creation of the previous frame. IMPORTANT: this copies the data in frame
         * so if the process will be restarted (start from frame 0) take this into account.*/
@@ -451,8 +453,14 @@ class DecoderFragment : Fragment() {
                             preMat = multiplyPut(matGray,0.5)
                         }*/
                         10 -> {
+                            /*Define a Scope and a Job to launch the async task of processing the
+                            * images and decode the QRs. Both the Scope and the Job could be use to
+                            * cancel the whole process.*/
                             val jobDecode = Job()
-                            val scopeDecode = CoroutineScope(jobDecode + Dispatchers.Default)
+                            //val scopeDecode = CoroutineScope(Dispatchers.Default + jobDecode)
+                            val scopeDecode = CoroutineScope(outerScopeDecode.coroutineContext+jobDecode)
+                            //scopeDecode.launch{ //launch starts
+
                             halfMat = multiplyPut(matGray.clone(), 0.5)
                             val tmp1 = scopeDecode.async {
                                 decodeqr(matGray,/*qrReaderGray,*/this)
@@ -470,7 +478,7 @@ class DecoderFragment : Fragment() {
                                 equalizeHist(matEqN, matEqN)
                                 decodeqr(matEqN,/*qrReaderEqNeg,*/this)
                             }
-                            val tmp5 =scopeDecode.async {
+                            val tmp5 = scopeDecode.async {
                                 add(preMat, halfMat, matMean)
                                 decodeqr(matMean,/*qrReaderMean,*/this)
                             }
@@ -510,24 +518,32 @@ class DecoderFragment : Fragment() {
                                 equalizeHist(matEqDiffNeg, matEqDiffNeg)
                                 decodeqr(matEqDiffNeg,qrReaderEqDiffNeg,this)
                             }*/
-                            preMat = multiplyPut(matGray,0.5)
+                            //preMat = multiplyPut(matGray, 0.5)
                             try {
+                                /*scopeDecode.launch { (tmp1.await() && tmp2.await() && tmp3.await() &&
+                                        tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
+                                        tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
+                                        /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/) }*/
                                 noQR = (tmp1.await() && tmp2.await() && tmp3.await() &&
                                         tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
                                         tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
                                         /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
                             } catch (e: CancellationException) {
-                                //Log.i("decodeScope","Exception: $e")
+                                Log.i("decodeScope", "Exception: $e")
+                            } finally {
+                                preMat = multiplyPut(matGray, 0.5)
                             }
                             /*while (scopeDecode.isActive) {
                                 Log.i("ScopeDecode","Active")
                             }*/
+
+                            //} //launch ends
                         }
                     }
                     timers[1]+=System.currentTimeMillis()-dspNDecodeFlag
                     totalFrames += 1
                 }
-            } catch (e : FrameGrabber.Exception){
+            } catch (e : FrameGrabber.Exception) {
                 Log.e("javacv", "Failed to grab frame: $e")
             }
         } while (frame != null)
@@ -538,7 +554,6 @@ class DecoderFragment : Fragment() {
                 videoproc.text = getString(R.string.nonedetected)
             }
         }*/
-
         try {//Stop FrameGrabber
             frameG.stop()
         } catch (e : FrameGrabber.Exception){
@@ -589,12 +604,12 @@ class DecoderFragment : Fragment() {
 
         //Display results in the UI.
         scope.launch(Dispatchers.Main){
-            totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
-            runtime.text = getString(R.string.runtime).plus("${endTime-starTime} ms")
-            totalQRs.text = getString(R.string.totalQRs).plus(data.size.toString())
-            videoproc.visibility = View.INVISIBLE
-            processButton.isEnabled = true
-            results.text = resultString.toString()
+        totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
+        runtime.text = getString(R.string.runtime).plus("${endTime-starTime} ms")
+        totalQRs.text = getString(R.string.totalQRs).plus(data.size.toString())
+        videoproc.visibility = View.INVISIBLE
+        processButton.isEnabled = true
+        results.text = resultString.toString()
         }
     }
 
@@ -648,7 +663,7 @@ class DecoderFragment : Fragment() {
     * Input: OpenCV Mat(), QRCodeReader, OpenCVFrameConverter, AndroidFrameConverter
     * Output: No output. Prints the QR and kill other process trying to decode.
     * Note: runs in the Default Thread, not Main. Called from the decode() function*/
-    private suspend fun decodeqr(gray: Mat, /*qrReader: QRCodeReader,*/ scopeDecode : CoroutineScope) : Boolean {
+    private fun decodeqr(gray: Mat, /*qrReader: QRCodeReader,*/ scopeDecode : CoroutineScope) : Boolean  {
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         val rgba = Mat()
         cvtColor(gray,rgba, COLOR_GRAY2RGBA)
@@ -686,14 +701,16 @@ class DecoderFragment : Fragment() {
             return false
         } catch (e : NotFoundException){//NotFoundException){
             //Log.i("QR Reader","Not found")
+            return true
             }
         catch (e: ChecksumException){
             //Log.i("QR Reader","Checksum failed")
+            return true
         }
         catch (e: FormatException){
             //Log.i("QR Reader","Format error")
+            return true
         }
-        return true
     }
 
     /*Function to detect the active area of the FLC, as it reflects light it is brighter than the
@@ -847,6 +864,9 @@ class DecoderFragment : Fragment() {
             rxData.clear()
             data.clear()
             //rxBytes.clear()
+            for (i in 0 until timers.size) {
+                timers[i] = 0L
+            }
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
@@ -874,5 +894,8 @@ class DecoderFragment : Fragment() {
         super.onDestroy()
         job.cancel() //Clean the other scope (threads) before finishing the fragment.
         jobIO.cancel() //Clean the other scope (threads) before finishing the fragment.
+        outerJobDecode.cancel()
+        scope.cancel()
+        outerScopeDecode.cancel()
     }
 }
