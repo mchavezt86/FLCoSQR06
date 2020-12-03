@@ -477,7 +477,7 @@ class CameraFragment : Fragment()  {
                         Handler(Looper.getMainLooper()).post {/**Maybe disable button?*/
                             Navigation.findNavController(requireActivity(),R.id.fragment_container)
                                 .navigate(CameraFragmentDirections.actionCameraToDecoder(
-                                    "$outputFile",rectROI!!.y(),previewSize.width -
+                                     "$outputFile",rectROI!!.y(),previewSize.width -
                                             rectROI!!.x() - rectROI!!.width(),rectROI!!.height(),
                                     rectROI!!.width()))
                             /*The actual values of the ROI rectangle needed for OpenCV Mat requires

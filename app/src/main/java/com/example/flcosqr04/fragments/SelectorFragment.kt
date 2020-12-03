@@ -116,7 +116,7 @@ class SelectorFragment : Fragment() {
                 val w : Int
                 val h : Int
 
-                //Added by Mkiguel 02/09
+                //Added by Miguel 02/09
                 //val ae : Int
                 val aeRange : Range<Int>
 

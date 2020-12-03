@@ -1,5 +1,6 @@
 package com.example.flcosqr04.fragments
 
+import android.icu.text.SymbolTable
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -28,6 +29,7 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedDeque
 import com.backblaze.erasure.ReedSolomon
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicLong
 
 //Sizes for Reed Solomon Encoder
 private const val RS_DATA_SIZE = 130
@@ -103,8 +105,20 @@ class DecoderFragment : Fragment() {
     /*List of timers to figure the execution time profile:
     * [0]: Grab frame total time
     * [1]: DSP + QR detection total time
-    * [2]: RS total time*/
-    private val timers = arrayListOf(0L, 0L, 0L)
+    * [2]: RS total time
+    * [3]: QR successful
+    * [4]: QR not successful*/
+    private val timers = arrayListOf(0L, 0L, 0L, 0L, 0L)
+    /*List of counters for QR detections:
+    * [0]: QR detected
+    * [1]: QR not detected */
+    //private val qrDetections = arrayListOf(0,0)
+    /*private val detectTime = ConcurrentLinkedDeque<Long>()
+    private val noDetectTime = ConcurrentLinkedDeque<Long>()*/
+    //Variables for execution time per frame. Added 2-12
+    private val times : MutableList<LongArray> = mutableListOf()
+    private lateinit var time01 : AtomicLong
+    //private lateinit var time02 : AtomicLong
 
     /*Function to grab frame by frame from a video file using the FFmpeg package, apply the mask
     * using the ROI from the CameraFragment and stores the result in a concurrent queue.
@@ -166,8 +180,15 @@ class DecoderFragment : Fragment() {
         var noQR : Boolean
         var flc = false
 
+        //Time variables
+        var grabFlag : Long
+        var dspNDecodeFlag : Long
+        var time00 : Long
+
         //Start of execution time
         val starTime = System.currentTimeMillis()
+
+
 
         try {//Start FrameGrabber
             frameG.start()
@@ -224,7 +245,7 @@ class DecoderFragment : Fragment() {
         * so if the process will be restarted (start from frame 0) take this into account.*/
 
         do {//Loop to grab all frames
-            val grabFlag = System.currentTimeMillis() /*flag to get grab execution time*/
+            grabFlag = System.currentTimeMillis() /*flag to get grab execution time*/
             try {
                 frame = frameG.grabFrame()
                 timers[0]+=System.currentTimeMillis()-grabFlag
@@ -232,7 +253,7 @@ class DecoderFragment : Fragment() {
                 //matGray.release()
                 //frameMat.release()
                 if (frame != null){
-                    val dspNDecodeFlag = System.currentTimeMillis()
+                    dspNDecodeFlag = System.currentTimeMillis()
                     //Conversions
                     frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
                     uses the first converterToMat object*/
@@ -460,35 +481,45 @@ class DecoderFragment : Fragment() {
                             //val scopeDecode = CoroutineScope(Dispatchers.Default + jobDecode)
                             val scopeDecode = CoroutineScope(outerScopeDecode.coroutineContext+jobDecode)
                             //scopeDecode.launch{ //launch starts
+                            //val x = arrayOf(0L,0L,0L,0L,0L,0L)
+
+                            //time00
+                            time00 = System.currentTimeMillis()
 
                             halfMat = multiplyPut(matGray.clone(), 0.5)
-                            val tmp1 = scopeDecode.async {
+                            val tmp1 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matGray,/*qrReaderGray,*/this)
                             }
-                            val tmp2 = scopeDecode.async {
+                            val tmp2 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 bitwise_not(matGray, matNeg)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matNeg,/*qrReaderNeg,*/this)
                             }
-                            val tmp3 = scopeDecode.async {
+                            val tmp3 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 equalizeHist(matGray, matEqP)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matEqP,/*qrReaderEqGray,*/this)
                             }
-                            val tmp4 = scopeDecode.async {
+                            val tmp4 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 bitwise_not(matGray, matEqN)
                                 equalizeHist(matEqN, matEqN)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matEqN,/*qrReaderEqNeg,*/this)
                             }
-                            val tmp5 = scopeDecode.async {
+                            val tmp5 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 add(preMat, halfMat, matMean)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matMean,/*qrReaderMean,*/this)
                             }
                             /*val tmp6 = scopeDecode.async {
                                 subtract(halfMat, preMat, matDiff)
                                 decodeqr(matDiff,qrReaderDiff,this)
                             }*/
-                            val tmp7 = scopeDecode.async {
+                            val tmp7 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 add(preMat, halfMat, matMeanNeg)
                                 bitwise_not(matMeanNeg, matMeanNeg)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matMeanNeg,/*qrReaderMeanNeg,*/this)
                             }  //Here app crashes for the OpenCV arithmetic
                             /*val tmp8 = scopeDecode.async {
@@ -496,9 +527,10 @@ class DecoderFragment : Fragment() {
                                 bitwise_not(matDiffNeg, matDiffNeg)
                                 decodeqr(matDiffNeg,qrReaderDiffNeg,this)
                             }*/
-                            val tmp9 = scopeDecode.async {
+                            val tmp9 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 add(preMat, halfMat, matEqMean)
                                 equalizeHist(matEqMean, matEqMean)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matEqMean,/*qrReaderEqMean,*/this)
                             }
                             /*val tmp10 = scopeDecode.async {
@@ -506,10 +538,11 @@ class DecoderFragment : Fragment() {
                                 equalizeHist(matEqDiff, matEqDiff)
                                 decodeqr(matEqDiff,qrReaderEqDiff,this)
                             }*/
-                            val tmp11 = scopeDecode.async {
+                            val tmp11 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 add(preMat, halfMat, matEqMeanNeg)
                                 bitwise_not(matEqMeanNeg, matEqMeanNeg)
                                 equalizeHist(matEqMeanNeg, matEqMeanNeg)
+                                time01.set(System.currentTimeMillis())
                                 decodeqr(matEqMeanNeg,/*qrReaderEqMeanNeg,*/this)
                             }
                             /*val tmp12 = scopeDecode.async {
@@ -520,19 +553,58 @@ class DecoderFragment : Fragment() {
                             }*/
                             //preMat = multiplyPut(matGray, 0.5)
                             try {
-                                /*scopeDecode.launch { (tmp1.await() && tmp2.await() && tmp3.await() &&
-                                        tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
-                                        tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
-                                        /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/) }*/
                                 noQR = (tmp1.await() && tmp2.await() && tmp3.await() &&
                                         tmp4.await() && tmp5.await() /*&& tmp6.await()*/ &&
                                         tmp7.await() /*&& tmp8.await()*/ && tmp9.await() &&
                                         /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
+                                /*val noQRArray = arrayOf(tmp1.await() , tmp2.await() , tmp3.await() ,
+                                        tmp4.await() , tmp5.await() /*&& tmp6.await()*/ ,
+                                        tmp7.await() /*&& tmp8.await()*/ , tmp9.await() ,
+                                        /*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
+                                Log.i("noQR",noQRArray.contentToString())
+                                noQR = true
+                                noQRArray.forEach {
+                                    noQR = noQR && it
+                                }*/
+                                //After await all values, if QR is not detected.
+                                /*times.add(longArrayOf( //times: grab, dsp, QR decode, and 0=no QR.
+                                    dspNDecodeFlag-grabFlag,
+                                    time01.get()-dspNDecodeFlag,
+                                    System.currentTimeMillis()-time01.get(),
+                                    0L))*/
+                                if (noQR) {
+                                    //After await all values, if QR is not detected.
+                                    times.add(longArrayOf( //times: grab, dsp, QR decode, and 0=no QR.
+                                        dspNDecodeFlag-grabFlag,
+                                        time01.get()-dspNDecodeFlag,
+                                        System.currentTimeMillis()-time01.get(),
+                                        0L))
+                                }
+                                else {
+                                    //After await all values, if QR is detected.
+                                    times.add(longArrayOf( //times: grab, dsp, QR decode, and 0=no QR.
+                                        dspNDecodeFlag-grabFlag,
+                                        time01.get()-dspNDecodeFlag,
+                                        System.currentTimeMillis()-time01.get(),
+                                        1L))
+                                }
                             } catch (e: CancellationException) {
-                                Log.i("decodeScope", "Exception: $e")
+                                //Scope 'decodeScope' cancelled if QR is found.
+                                //Log.i("decodeScope", "Exception: $e")
+                                //Cancellation thrown when QR is detected.
+                                times.add(longArrayOf( //times: grab, dsp, QR decode, and 1=yes QR.
+                                    dspNDecodeFlag-grabFlag,
+                                    time01.get()-dspNDecodeFlag,
+                                    System.currentTimeMillis()-time01.get(),
+                                    1L))
                             } finally {
                                 preMat = multiplyPut(matGray, 0.5)
                             }
+                            /*val noQR = listOf(tmp1.await(),tmp2.await(),tmp3.await(),tmp4.await(), //Added 2-12
+                                tmp5.await() /*&& tmp6.await()*/,tmp7.await(), /*&& tmp8.await()*/
+                                tmp9.await(),/*tmp10.await() &&*/ tmp11.await() /*&& tmp12.await()*/)
+                            Log.i("NoQR","$noQR")
+                            preMat = multiplyPut(matGray, 0.5)*/
                             /*while (scopeDecode.isActive) {
                                 Log.i("ScopeDecode","Active")
                             }*/
@@ -598,10 +670,6 @@ class DecoderFragment : Fragment() {
 
         timers[2]+=endTime-rsFlag
 
-        Log.i("Timers","Grab frame time: ${timers[0]} ms.")
-        Log.i("Timers","DSP and QR decode time: ${timers[1]} ms.")
-        Log.i("Timers","Reed Solomon time: ${timers[2]} ms.")
-
         //Display results in the UI.
         scope.launch(Dispatchers.Main){
         totalframes.text = getString(R.string.totalframes).plus(totalFrames.toString())
@@ -611,6 +679,18 @@ class DecoderFragment : Fragment() {
         processButton.isEnabled = true
         results.text = resultString.toString()
         }
+
+        Log.i("Timers","Grab frame time: ${timers[0]} ms.")
+        Log.i("Timers","DSP and QR decode time: ${timers[1]} ms.")
+        Log.i("Timers","Reed Solomon time: ${timers[2]} ms.")
+        Log.i("Timers","QR detection time: ${timers[3]} ms.") /*/qrDetections[0]} ms, with " +
+                "${qrDetections[0]} occurrences")*/
+        Log.i("Timers","QR failure time: ${timers[4]} ms") /*/qrDetections[0]} ms, with " +
+                "${qrDetections[1]} ocurrences")*/
+        times.forEach {
+            Log.i("Times:", "${it[0]}, ${it[1]}, ${it[2]}, ${it[3]}")
+        }
+
     }
 
     /*Function to decode QR based on a OpenCV Mat
@@ -664,6 +744,8 @@ class DecoderFragment : Fragment() {
     * Output: No output. Prints the QR and kill other process trying to decode.
     * Note: runs in the Default Thread, not Main. Called from the decode() function*/
     private fun decodeqr(gray: Mat, /*qrReader: QRCodeReader,*/ scopeDecode : CoroutineScope) : Boolean  {
+        val qrFlag = System.currentTimeMillis() //Flag for timers
+        //time01.set(qrFlag)
         //Conversion from Mat -> Frame -> Bitmap -> IntArray -> BinaryBitmap
         val rgba = Mat()
         cvtColor(gray,rgba, COLOR_GRAY2RGBA)
@@ -678,6 +760,7 @@ class DecoderFragment : Fragment() {
         //Store result of QR detection
         val result : Result
         val qrReader = QRCodeReader()
+        //var selfResult = true
 
         try { //Detect QR and print result
             result = qrReader.decode(binBitmap,hints)
@@ -688,27 +771,63 @@ class DecoderFragment : Fragment() {
             * data. */
             //qrBytes = result.rawBytes
             //Fully sync check and add data to the rxData.
+            //time02.set(qrFlag)
             synchronized(rxData){
                 if (!rxData.contains(qrString)){
                     rxData.add(qrString)
-                    Log.i("RS","String: $qrString")
+                    //selfResult = false //Added 2-12
+                    //Log.i("RS","String: $qrString")
                     Log.i("RS","Bytes ISO: ${qrString.toByteArray(Charsets.ISO_8859_1).contentToString()}")
                     //Log.i("RS","Bytes UTF: ${qrString.toByteArray(Charsets.UTF_8).contentToString()}")
                     //Log.i("RS","Byte number: ${qrString.toByteArray(charset = Charsets.ISO_8859_1)[0].toUByte()}")
+                    //Added 2-12
+                    //timers[3]+=System.currentTimeMillis()-qrFlag
+                    scopeDecode.cancel("QR detected")
                 }
             }
-            scopeDecode.cancel("QR detected")
+            //scopeDecode.cancel("QR detected")
+            /*timers[3]+=System.currentTimeMillis()-qrFlag
+            synchronized(detectTime){
+                detectTime.add(System.currentTimeMillis()-qrFlag)
+            }
+            scopeDecode.cancel("QR detected")*/
+            //qrDetections[0]+=1
             return false
-        } catch (e : NotFoundException){//NotFoundException){
+        }
+        /*catch (e: Exception) {
+            when (e) {
+                is NotFoundException, is ChecksumException, is FormatException -> {
+                    timers[4]+=System.currentTimeMillis()-qrFlag
+                    synchronized(noDetectTime){
+                        noDetectTime.add(System.currentTimeMillis()-qrFlag)
+                    }
+                    Log.i("decodeqr","Exception: $e")
+                    selfResult = true
+                }
+                is CancellationException -> {
+                    Log.i("decodeqr","Exception: $e")
+                   //selfResult
+                }
+            }
+        } finally {
+            return selfResult
+        }*/
+        catch (e : NotFoundException){//NotFoundException){
             //Log.i("QR Reader","Not found")
+            //timers[4]+=System.currentTimeMillis()-qrFlag
+            //qrDetections[1]+=1
             return true
             }
         catch (e: ChecksumException){
             //Log.i("QR Reader","Checksum failed")
+            //timers[4]+=System.currentTimeMillis()-qrFlag
+            //qrDetections[1]+=1
             return true
         }
         catch (e: FormatException){
             //Log.i("QR Reader","Format error")
+            //timers[4]+=System.currentTimeMillis()-qrFlag
+            //qrDetections[1]+=1
             return true
         }
     }
@@ -849,6 +968,9 @@ class DecoderFragment : Fragment() {
         hints[DecodeHintType.TRY_HARDER] = true
         hints[DecodeHintType.POSSIBLE_FORMATS] = BarcodeFormat.QR_CODE
 
+        time01 = AtomicLong(0L)
+        //time02 = AtomicLong(0L)
+
          //Button to start processing
         processButton = view.findViewById(R.id.process_button)
         processButton.setOnClickListener(){//Button click listener sets some variables
@@ -864,9 +986,14 @@ class DecoderFragment : Fragment() {
             rxData.clear()
             data.clear()
             //rxBytes.clear()
-            for (i in 0 until timers.size) {
+            for (i in 0 until timers.size) { //Initialise timers
                 timers[i] = 0L
             }
+            /*for (i in 0 until qrDetections.size) { //Initialise QR detection counters
+                qrDetections[i] = 0
+            }*/
+            //2-12
+            times.clear()
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
