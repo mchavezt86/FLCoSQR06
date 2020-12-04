@@ -100,7 +100,7 @@ class DecoderFragment : Fragment() {
     private val erasure : BooleanArray by lazy { BooleanArray(RS_TOTAL_SIZE){false} }
 
     //Saving each Mat after grab a frame and apply the ROI mask.
-    private val roiMat = ConcurrentLinkedDeque<Mat>()
+    private val roiMatQueue = ConcurrentLinkedDeque<Mat>()
 
     /*List of timers to figure the execution time profile:
     * [0]: Grab frame total time
@@ -120,6 +120,8 @@ class DecoderFragment : Fragment() {
     private lateinit var time01 : AtomicLong
     //private lateinit var time02 : AtomicLong
 
+    private var frameCount : Int = 0
+
     /*Function to grab frame by frame from a video file using the FFmpeg package, apply the mask
     * using the ROI from the CameraFragment and stores the result in a concurrent queue.
     * Input: String : video file path and name
@@ -129,20 +131,43 @@ class DecoderFragment : Fragment() {
         val frameG = FFmpegFrameGrabber(videoFile)
         var frame : Frame?
         val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
-        var matROI = Mat()
+        val roi = Rect(args.roiX,args.roiY,args.roiW,args.roiH)
+        var mat : Mat
+        //var matROI : Mat
 
-        try {//Start FrameGrabber
+        /*Start FrameGrabber and get the length in frames (approximation). frameCount is set to
+        * negative if the process fails*/
+        frameCount = try {//Start FrameGrabber
             frameG.start()
+            frameG.lengthInFrames
         } catch (e : FrameGrabber.Exception) {
             Log.e("javacv", "Failed to start FrameGrabber: $e")
+            roiMatQueue.add(Mat())
+            -1
         }
 
-        for (i in 0 until frameG.lengthInVideoFrames ) {
-            try {
-                frame = frameG.grabFrame()
-            } catch (e : FrameGrabber.Exception){
-                Log.e("javacv", "Failed to grab frame: $e")
+        Log.i("IO","Total frames:${frameCount}")
+
+        /*Main loop in the function is conditioned to have a positive frameCount*/
+        if (frameCount>0){
+            for (i in 0 until frameG.lengthInVideoFrames ) {
+                try {
+                    frame = frameG.grabFrame()
+                    mat = Mat(converterToMat.convertToMat(frame),roi)
+                    cvtColor(mat,mat,COLOR_BGR2GRAY)
+                    synchronized(roiMatQueue){ //Concurrency of the queue must be guaranteed
+                        roiMatQueue.add(mat)
+                    }
+                } catch (e : FrameGrabber.Exception){
+                    Log.e("javacv", "Failed to grab frame: $e")
+                }
             }
+        }
+
+        try {//Stop FrameGrabber
+            frameG.stop()
+        } catch (e : FrameGrabber.Exception){
+            Log.e("javacv", "Failed to stop FrameGrabber: $e")
         }
 
     }
@@ -159,12 +184,14 @@ class DecoderFragment : Fragment() {
         val converterToMat : OpenCVFrameConverter.ToMat = OpenCVFrameConverter.ToMat()
         //Variables for the OpenCV Mat
         var frameMat = Mat() // Frame in Mat format.
-        val matGray = Mat()// Frame converted to grayscale
+        //val matGray = Mat()// Frame converted to grayscale
+        var matGray : Mat?
         val matNeg = Mat() // Negative grayscale image
         val matEqP = Mat() // Equalised grayscale image
         val matEqN = Mat() // Equalised negative image
         val matBi = Mat() // Equalised negative image
-        var preMat = Mat() // Previous frame in Mat format
+        //var preMat = Mat() // Previous frame in Mat format
+        var preMat : Mat?
         val matMean = Mat() //Mean of consecutive frames in Mat format
         val matDiff = Mat() //Difference of consecutive frames in Mat format.
         var halfMat = Mat() //Current Mat divided by 2.
@@ -183,19 +210,19 @@ class DecoderFragment : Fragment() {
         //Time variables
         var grabFlag : Long
         var dspNDecodeFlag : Long
-        var time00 : Long
+        //var time00 : Long
 
         //Start of execution time
         val starTime = System.currentTimeMillis()
 
 
 
-        try {//Start FrameGrabber
+        /*try {//Start FrameGrabber
             frameG.start()
         } catch (e : FrameGrabber.Exception) {
             Log.e("javacv", "Failed to start FrameGrabber: $e")
         }
-        frame = null
+        frame = null*/
 
         /*Find the FLC active area.
         * Main Logic:
@@ -206,7 +233,7 @@ class DecoderFragment : Fragment() {
         * *********SUBJECT TO EVALUATION!!!!!!*********
         * The potential problem is that if no rectangle is found, the process will not start*/
 
-        do { // Loop to grab frames.
+        /*do { // Loop to grab frames. REPLACED BY LOOP BELOW
             try {
                 frame = frameG.grabFrame()
                 /*if (frame != null){
@@ -219,7 +246,13 @@ class DecoderFragment : Fragment() {
             } catch (e : FrameGrabber.Exception){
                 Log.e("javacv", "Failed to grab frame: $e")
             }
-        } while (frame == null) // !=null
+        } while (frame == null) // !=null*/
+
+        do {
+            synchronized(roiMatQueue){
+                preMat = roiMatQueue.peekFirst()
+            }
+        } while (preMat == null)
 
         //Start of execution time
         //val starTime = System.currentTimeMillis()
@@ -229,14 +262,18 @@ class DecoderFragment : Fragment() {
         //if (flc){ //START of if loop
             //Array of ResultPoints for detect the ROI (x,y,w,h)
         //val roi = Rect(crop[2],crop[3],crop[0],crop[1])
-        val roi = Rect(args.roiX,args.roiY,args.roiW,args.roiH)
+        //val roi = Rect(args.roiX,args.roiY,args.roiW,args.roiH)
+
         //Log.i("Decode","ROI: ${roi.x()},${roi.y()},${roi.width()},${roi.height()}")
         /*Save previous frame value, check for the divide operator*/
         //preMat.release()
-        preMat = Mat(converterToMat.convert(frame),roi)
-        cvtColor(preMat,preMat,COLOR_BGR2GRAY)
+
+        /*preMat = Mat(converterToMat.convert(frame),roi)
+        cvtColor(preMat,preMat,COLOR_BGR2GRAY)*/
         preMat = multiplyPut(preMat,0.5)
-        Log.i("Preframe","preMat size: ${preMat.size().width()},${preMat.size().height()},${preMat.channels()}")
+        Log.i("Preframe","preMat size: ${preMat!!.size().width()}," +
+                "${preMat!!.size().height()},${preMat!!.channels()}")
+
         /*Launch text change in the UI*/
         scope.launch{
         videoproc.text = getString(R.string.processing)
@@ -247,17 +284,20 @@ class DecoderFragment : Fragment() {
         do {//Loop to grab all frames
             grabFlag = System.currentTimeMillis() /*flag to get grab execution time*/
             try {
-                frame = frameG.grabFrame()
+                //frame = frameG.grabFrame()
+                synchronized(roiMatQueue){
+                    matGray = roiMatQueue.pollFirst()
+                }
                 timers[0]+=System.currentTimeMillis()-grabFlag
                 //Clear variables.
                 //matGray.release()
                 //frameMat.release()
-                if (frame != null){
+                if (matGray /*frame*/ != null){
                     dspNDecodeFlag = System.currentTimeMillis()
                     //Conversions
-                    frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
+                    /*frameMat = Mat(converterToMat.convert(frame),roi) /*Frame to Mat with ROI
                     uses the first converterToMat object*/
-                    cvtColor(frameMat,matGray,COLOR_BGR2GRAY) //To Gray
+                    cvtColor(frameMat,matGray,COLOR_BGR2GRAY) //To Gray*/
 
                     when (radio) {
                         /*1 -> {
@@ -484,12 +524,12 @@ class DecoderFragment : Fragment() {
                             //val x = arrayOf(0L,0L,0L,0L,0L,0L)
 
                             //time00
-                            time00 = System.currentTimeMillis()
+                            //time00 = System.currentTimeMillis()
 
-                            halfMat = multiplyPut(matGray.clone(), 0.5)
+                            halfMat = multiplyPut(matGray!!.clone(), 0.5)
                             val tmp1 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 time01.set(System.currentTimeMillis())
-                                decodeqr(matGray,/*qrReaderGray,*/this)
+                                decodeqr(matGray!!,/*qrReaderGray,*/this)
                             }
                             val tmp2 = scopeDecode.async(scopeDecode.coroutineContext+Job()) {
                                 bitwise_not(matGray, matNeg)
@@ -618,7 +658,7 @@ class DecoderFragment : Fragment() {
             } catch (e : FrameGrabber.Exception) {
                 Log.e("javacv", "Failed to grab frame: $e")
             }
-        } while (frame != null)
+        } while (totalFrames < frameCount)//frame != null)
         /*} else { //END of if loop
             //if the display is not detected, display a message in the UI.
             Log.i("FLC","Display not detected")
@@ -626,11 +666,11 @@ class DecoderFragment : Fragment() {
                 videoproc.text = getString(R.string.nonedetected)
             }
         }*/
-        try {//Stop FrameGrabber
+        /*try {//Stop FrameGrabber
             frameG.stop()
         } catch (e : FrameGrabber.Exception){
             Log.e("javacv", "Failed to stop FrameGrabber: $e")
-        }
+        }*/
 
         /*Print length of the data and the data received. Received is in a ConcurrentLinkedQueue
         * (rxData) which is added to a MutableList (data)*/
@@ -993,7 +1033,12 @@ class DecoderFragment : Fragment() {
                 qrDetections[i] = 0
             }*/
             //2-12
+            //Clear the timer flag arrays
             times.clear()
+            //Clear the roiMatQueue (just in case, it should be empty)
+            roiMatQueue.clear()
+            //Clear the frameCount
+            frameCount = 0
 
             //Get the ID of the radio button to select processing
             when(view.findViewById<RadioGroup>(R.id.dsp_selection).checkedRadioButtonId){
@@ -1011,6 +1056,7 @@ class DecoderFragment : Fragment() {
             scope.launch {
                 /* The decode function is set to run on the Dispatcher.Default scope so it does not
                 * block the Main Thread*/
+                grabROI(args.videoname)
                 decode(args.videoname, 10)//radio)
             }
         }
