@@ -233,7 +233,7 @@ class ImageProcess {
          * Output: None
          * Callback: Do something with the Bitmap.
          */
-        fun getBitMapFromSurfaceView(videoView: AutoFitSurfaceView, bitmap: Bitmap, callback: (Bitmap?) -> Unit) {
+        fun getBitMapFromSurfaceView(videoView: AutoFitSurfaceView, bitmap: Bitmap, callback: (Bitmap) -> Unit) {
             /*val bitmap: Bitmap = Bitmap.createBitmap(
                 videoView.width,
                 videoView.height,
@@ -248,6 +248,9 @@ class ImageProcess {
                     { copyResult ->
                         if (copyResult == PixelCopy.SUCCESS) {
                             callback(bitmap)
+                        }
+                        else {
+                            Log.e("PixelCopy","Error while copying pixels.")
                         }
                         handlerThread.quitSafely();
                     },

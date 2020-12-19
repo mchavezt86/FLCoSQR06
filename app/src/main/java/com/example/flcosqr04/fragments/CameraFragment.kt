@@ -342,6 +342,7 @@ class CameraFragment : Fragment()  {
         var rectROI : Rect? = null
         //
         val previewSize = Size(bmpSurf.width,bmpSurf.height)
+        //added 18-12
 
         //Miguel 23-11
         //Set the listener for the ImageReader to detect the ROI.
@@ -375,17 +376,23 @@ class CameraFragment : Fragment()  {
         * NOTE: The ImageReader (and its listener) is more suitable for this but for Constrained
         * High Speed Capture Session does not allow an ImageReader surface, only Preview and
         * Recorder Surfaces */
+
+        val handlerThread = HandlerThread("PixelCopier")
+        handlerThread.start()
+
         delay(3000) /*Wait for camera to open and start*/
         do {
             /*Get the Surface into a Bitmap. Cannot use View.drawToBitmap because it saves the View
             * but not the camera image displayed*/
-            ImageProcess.getBitMapFromSurfaceView(viewFinder,bmpSurf){ bitmap : Bitmap? ->
-                if (rectROI == null) rectROI = ImageProcess.detectROI(bitmap)
+            ImageProcess.getBitMapFromSurfaceView(viewFinder,bmpSurf){
+                bmpSurf = it
             }
-            delay(1500) /*Period between each try to find the ROI. If delay is too short
+            rectROI = ImageProcess.detectROI(bmpSurf)
+            delay(10) /*Period between each try to find the ROI. If delay is too short
              the program might run out of memory as this process does not wait for a new image
              available, it just reads the current pixels from the surface. */
         } while (rectROI == null)
+        handlerThread.quit()
         Log.i("ROI","x:${rectROI!!.x()}, y:${rectROI!!.y()}, w:${rectROI!!.width()}," +
                 "h:${rectROI!!.height()}")
         /*Set the ROI View parameters to be displayed in the camera surface*/
