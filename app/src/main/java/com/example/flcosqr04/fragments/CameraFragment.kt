@@ -448,11 +448,12 @@ class CameraFragment : Fragment()  {
                         requireActivity().requestedOrientation =
                             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
+                        //Commented by Miguel 20-12-20
                         // Requires recording of at least MIN_REQUIRED_RECORDING_TIME_MILLIS
-                        val elapsedTimeMillis = System.currentTimeMillis() - recordingStartMillis
+                        /*val elapsedTimeMillis = System.currentTimeMillis() - recordingStartMillis
                         if (elapsedTimeMillis < MIN_REQUIRED_RECORDING_TIME_MILLIS) {
                             delay(MIN_REQUIRED_RECORDING_TIME_MILLIS - elapsedTimeMillis)
-                        }
+                        }*/
 
                         Log.d(TAG, "Recording stopped. Output file: $outputFile")
                         recorder.stop()
@@ -460,10 +461,11 @@ class CameraFragment : Fragment()  {
                         // Removes recording animation
                         overlay.removeCallbacks(animationTask)
 
+                        //Commented by Miguel 20-12-20
                         // Broadcasts the media file to the rest of the system
-                        MediaScannerConnection.scanFile(
+                        /*MediaScannerConnection.scanFile(
                             view.context, arrayOf(outputFile.absolutePath), null, null
-                        )
+                        )*/
 
                         // Launch external activity via intent to play video recorded using our provider
                         /*startActivity(Intent().apply {
@@ -479,7 +481,7 @@ class CameraFragment : Fragment()  {
                         // Finishes our current camera screen
                         recorded = true // Added by Miguel
                         //mainActivity.video = "$outputFile" // Added by Miguel 28/08
-                        delay(MainActivity.ANIMATION_SLOW_MILLIS)
+                        //delay(MainActivity.ANIMATION_SLOW_MILLIS) //Commented by Miguel 20-12-20
                         //navController.popBackStack()
                         Handler(Looper.getMainLooper()).post {/**Maybe disable button?*/
                             Navigation.findNavController(requireActivity(),R.id.fragment_container)
