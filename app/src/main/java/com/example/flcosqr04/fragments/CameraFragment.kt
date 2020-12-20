@@ -194,12 +194,15 @@ class CameraFragment : Fragment()  {
         }
     }
 
-    private var recordingStartMillis: Long = 0L
+    //private var recordingStartMillis: Long = 0L
 
     //Added by Miguel 20/08/2020: Avoids break of port/land when the camera is rotated.
-    private var recorded: Boolean = false
+    //private var recorded: Boolean = false
     //Added by Miguel 28/08
     //private lateinit var mainActivity : MainActivity
+
+    //Added by Miguel 20-12-2020
+    private var recordingDuration: Long = 0L
 
     /** Live data listener for changes in the device orientation relative to the camera */
     private lateinit var relativeOrientation: OrientationLiveData
@@ -217,7 +220,7 @@ class CameraFragment : Fragment()  {
         viewFinder = view.findViewById(R.id.view_finder)
 
         //Added by Miguel 28/08
-        recorded = false
+        //recorded = false
 
         //Added by Miguel 31-11
         //Initialize the ImgReaders
@@ -227,6 +230,12 @@ class CameraFragment : Fragment()  {
             ImageFormat.YUV_420_888,10)*/
         //Rectangle to show the ROI.
         roiRectView = view.findViewById(R.id.roirect)
+
+        //Added by Miguel 20-12-2020
+        /*This variable controls the duration of the recording in milliseconds. Change according to
+        * this formula:
+        * recordingDuration = (N° of frames / video FPS) * 1000 */
+        recordingDuration = ((175.0/60.0)*1000).toLong()
 
         viewFinder.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
@@ -393,14 +402,14 @@ class CameraFragment : Fragment()  {
              available, it just reads the current pixels from the surface. */
         } while (rectROI == null)
         handlerThread.quit()
-        Log.i("ROI","x:${rectROI!!.x()}, y:${rectROI!!.y()}, w:${rectROI!!.width()}," +
-                "h:${rectROI!!.height()}")
+        Log.i("ROI","x:${rectROI.x()}, y:${rectROI.y()}, w:${rectROI.width()}," +
+                "h:${rectROI.height()}")
         /*Set the ROI View parameters to be displayed in the camera surface*/
-        roiRectView.x = (rectROI!!.x() * viewFinder.width / previewSize.width).toFloat()
-        roiRectView.y = (rectROI!!.y() * viewFinder.height / previewSize.height).toFloat()
+        roiRectView.x = (rectROI.x() * viewFinder.width / previewSize.width).toFloat()
+        roiRectView.y = (rectROI.y() * viewFinder.height / previewSize.height).toFloat()
         roiRectView.layoutParams = ConstraintLayout.LayoutParams(
-            rectROI!!.width() * viewFinder.width / previewSize.width,
-            rectROI!!.height() * viewFinder.height / previewSize.height)
+            rectROI.width() * viewFinder.width / previewSize.width,
+            rectROI.height() * viewFinder.height / previewSize.height)
         roiRectView.visibility = View.VISIBLE
         /*Set the capture_button visible*/
         capture_button.visibility = Button.VISIBLE
@@ -410,7 +419,7 @@ class CameraFragment : Fragment()  {
             when (event.action) {
                 //Changed by Miguel 18-08-2020
                 //MotionEvent.ACTION_DOWN
-                MotionEvent.ACTION_UP -> lifecycleScope.launch(Dispatchers.IO) {
+                /*MotionEvent.ACTION_UP -> lifecycleScope.launch(Dispatchers.IO) {
                     if (!record) {
                         record = true
                         // Prevents screen rotation during the video recording
@@ -494,9 +503,57 @@ class CameraFragment : Fragment()  {
                             * measured from the other end so its 720 - x - w */
                         } //Test 01/09
                     }
+                }*/
+                MotionEvent.ACTION_DOWN -> lifecycleScope.launch(Dispatchers.IO) {
+                    // Prevents screen rotation during the video recording
+                    requireActivity().requestedOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_LOCKED
+
+                    // Stops preview requests, and start record requests
+                    session.stopRepeating()
+                    session.setRepeatingBurst(recordRequestList, null, cameraHandler)
+
+                    // Finalizes recorder setup and starts recording
+                    recorder.apply {
+                        // Sets output orientation based on current sensor value at start time
+                        relativeOrientation.value?.let { setOrientationHint(it) }
+                        prepare()
+                        start()
+                    }
+                    Log.d(TAG, "Recording started")
+
+
+                    // Starts recording animation
+                    overlay.post(animationTask)
+
+                    //Record for a fixed time
+                    delay(recordingDuration)
+
+                    requireActivity().requestedOrientation =
+                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+
+                    Log.d(TAG, "Recording stopped. Output file: $outputFile")
+                    recorder.stop()
+
+                    // Removes recording animation
+                    overlay.removeCallbacks(animationTask)
+
+                    Handler(Looper.getMainLooper()).post {
+                        /**Maybe disable button?*/
+                        Navigation.findNavController(requireActivity(), R.id.fragment_container)
+                            .navigate(
+                                CameraFragmentDirections.actionCameraToDecoder(
+                                    "$outputFile", rectROI.y(), previewSize.width -
+                                            rectROI.x() - rectROI.width(), rectROI.height(),
+                                    rectROI.width()
+                                )
+                            )
+                        /*The actual values of the ROI rectangle needed for OpenCV Mat requires
+                        * width and height to be swap, Mat_x coordinate is y  and Mat_x is
+                        * measured from the other end so its 720 - x - w */
+                    }
                 }
             }
-
             true
         }
     }
