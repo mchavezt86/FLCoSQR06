@@ -389,7 +389,7 @@ class CameraFragment : Fragment()  {
         val handlerThread = HandlerThread("PixelCopier")
         handlerThread.start()
 
-        delay(3000) /*Wait for camera to open and start*/
+        delay(1000) /*Wait for camera to open and start*/
         do {
             /*Get the Surface into a Bitmap. Cannot use View.drawToBitmap because it saves the View
             * but not the camera image displayed*/
@@ -527,7 +527,7 @@ class CameraFragment : Fragment()  {
                     overlay.post(animationTask)
 
                     //Record for a fixed time
-                    delay(recordingDuration)
+                    //delay(recordingDuration)
 
                     requireActivity().requestedOrientation =
                         ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
