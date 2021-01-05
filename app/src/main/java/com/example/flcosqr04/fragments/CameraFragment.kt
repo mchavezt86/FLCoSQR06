@@ -527,7 +527,7 @@ class CameraFragment : Fragment()  {
                     overlay.post(animationTask)
 
                     //Record for a fixed time
-                    //delay(recordingDuration)
+                    delay(recordingDuration)
 
                     requireActivity().requestedOrientation =
                         ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
