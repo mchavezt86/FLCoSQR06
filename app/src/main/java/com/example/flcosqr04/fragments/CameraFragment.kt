@@ -397,7 +397,7 @@ class CameraFragment : Fragment()  {
                 bmpSurf = it
             }
             rectROI = ImageProcess.detectROI(bmpSurf)
-            delay(10) /*Period between each try to find the ROI. If delay is too short
+            delay(100) /*Period between each try to find the ROI. If delay is too short
              the program might run out of memory as this process does not wait for a new image
              available, it just reads the current pixels from the surface. */
         } while (rectROI == null)

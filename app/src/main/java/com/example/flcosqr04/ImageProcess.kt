@@ -173,7 +173,7 @@ class ImageProcess {
             *- Contour extraction: we use only the contour variable which holds the detected contours in
             *  the form of a Mat vector*/
             adaptiveThreshold(mat,bin,255.0,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,binSize,0.0)
-            findContours(bin,contours,Mat(),RETR_LIST,CHAIN_APPROX_NONE) //Mat() is for hierarchy [RETR_EXTERNAL]
+            findContours(bin,contours,Mat(),RETR_LIST, CHAIN_APPROX_SIMPLE) //Mat() is for hierarchy [RETR_EXTERNAL]
 
             //Variable initialisation for the detected contour initialisation.
             var cnt : Mat
