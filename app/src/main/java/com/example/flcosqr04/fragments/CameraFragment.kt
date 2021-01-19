@@ -11,6 +11,7 @@ import android.hardware.camera2.CameraConstrainedHighSpeedCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.params.MeteringRectangle
 import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.MediaCodec
 import android.media.MediaRecorder
@@ -163,6 +164,11 @@ class CameraFragment : Fragment()  {
             set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
             //Added by Miguel 10/10 - Lock AE when previewing.
             //set(CaptureRequest.CONTROL_AE_LOCK,true)
+            //Added by Miguel 12/01 - AE region and focus region
+            set(CaptureRequest.CONTROL_AE_REGIONS,arrayOf(MeteringRectangle(args.zoom,
+                MeteringRectangle.METERING_WEIGHT_MAX-1)))
+            set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(args.zoom,
+                MeteringRectangle.METERING_WEIGHT_MAX-1)))
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
@@ -187,6 +193,11 @@ class CameraFragment : Fragment()  {
             set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
             //Added by Miguel 10/10 - Lock AE when recording.
             //set(CaptureRequest.CONTROL_AE_LOCK,true)
+            //Added by Miguel 12/01 - AE region and focus region
+            set(CaptureRequest.CONTROL_AE_REGIONS,arrayOf(MeteringRectangle(args.zoom,
+                MeteringRectangle.METERING_WEIGHT_MAX-1)))
+            set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(args.zoom,
+                MeteringRectangle.METERING_WEIGHT_MAX-1)))
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
