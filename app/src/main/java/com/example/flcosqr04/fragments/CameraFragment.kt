@@ -53,6 +53,7 @@ import androidx.core.view.drawToBitmap
 import kotlinx.coroutines.*
 import org.bytedeco.javacpp.annotation.Const
 import org.bytedeco.opencv.opencv_core.Rect
+import java.lang.Math.abs
 import java.lang.Runnable
 
 class CameraFragment : Fragment()  {
@@ -145,6 +146,7 @@ class CameraFragment : Fragment()  {
     /** The [ImageReader] that will be opened in this fragment to detect the ROI */
     //private lateinit var imgRdrQR : ImageReader
 
+    /*Added by Miguel 11-01*/
     /** The [Bitmap] to receive the PixelCopy result*/
     private lateinit var bmpSurf : Bitmap
 
@@ -422,8 +424,71 @@ class CameraFragment : Fragment()  {
             rectROI.width() * viewFinder.width / previewSize.width,
             rectROI.height() * viewFinder.height / previewSize.height)
         roiRectView.visibility = View.VISIBLE
+
+        /*Change the AE and AF regions to match the ROI area*/
+        val regionAEAF = ImageProcess.scaleRect(args.zoom,bmpSurf,rectROI)
+
+        /** Requests used for preview only in the [CameraConstrainedHighSpeedCaptureSession] */
+        /*Added to create a new preview with AE and AF region set to the display area*/
+        val newPreviewRequestList: List<CaptureRequest> by lazy {
+            // Capture request holds references to target surfaces
+            session.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                // Add the preview surface target
+                addTarget(viewFinder.holder.surface)
+                // High speed capture session requires a target FPS range, even for preview only
+                set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(FPS_PREVIEW_ONLY, args.fps))
+                //Added by Miguel - Zoom 4x
+                set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
+                //Added by Miguel 02/09 - Lowest AE Exposure Compensation
+                set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, args.aeLow)
+                //Added by Miguel 10/10 - Lock AE when previewing.
+                set(CaptureRequest.CONTROL_AE_LOCK,true)
+                //Added by Miguel 12/01 - AE region and focus region
+                set(CaptureRequest.CONTROL_AE_REGIONS,arrayOf(MeteringRectangle(regionAEAF,
+                    MeteringRectangle.METERING_WEIGHT_MAX-1)))
+                set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(regionAEAF,
+                    MeteringRectangle.METERING_WEIGHT_MAX-1)))
+            }.let {
+                // Creates a list of highly optimized capture requests sent to the camera for a high
+                // speed video session. Important note: Must use repeating burst request type
+                session.createHighSpeedRequestList(it.build())
+            }
+        }
+
+        /*Change the preview to one focused on the display*/
+        session.stopRepeating()
+        //delay(1000)
+        session.setRepeatingBurst(newPreviewRequestList, null, cameraHandler)
+
         /*Set the capture_button visible*/
         capture_button.visibility = Button.VISIBLE
+
+        /** Requests used for preview and recording in the [CameraConstrainedHighSpeedCaptureSession] */
+        val recordRequestList: List<CaptureRequest> by lazy {
+            // Capture request holds references to target surfaces
+            session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                // Add the preview and recording surface targets
+                addTarget(viewFinder.holder.surface)
+                addTarget(recorderSurface)
+                // Sets user requested FPS for all targets
+                set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(args.fps, args.fps))
+                //Added by Miguel - Zoom 4x
+                set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
+                //Added by Miguel 02/09 - Lowest AE Exposure Compensation
+                set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
+                //Added by Miguel 10/10 - Lock AE when recording.
+                set(CaptureRequest.CONTROL_AE_LOCK,true)
+                //Added by Miguel 12/01 - AE region and focus region
+                set(CaptureRequest.CONTROL_AE_REGIONS,arrayOf(MeteringRectangle(regionAEAF,
+                    MeteringRectangle.METERING_WEIGHT_MAX-1)))
+                set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(regionAEAF,
+                    MeteringRectangle.METERING_WEIGHT_MAX-1)))
+            }.let {
+                // Creates a list of highly optimized capture requests sent to the camera for a high
+                // speed video session. Important note: Must use repeating burst request type
+                session.createHighSpeedRequestList(it.build())
+            }
+        }
 
         // Listen to the capture button
         capture_button.setOnTouchListener { view, event ->

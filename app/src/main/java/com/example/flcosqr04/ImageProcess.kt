@@ -262,5 +262,26 @@ class ImageProcess {
                 e.printStackTrace()
             }
         }
+
+        /**Function to:
+         * Compute the rectangle of the display (ROI) into camera array coordinates (i.e. the zoom)
+         * to set the auto-exposure (AE) and auto-focus (AF) regions.
+         * Inputs:
+         * - Zoom Rect: camera array to zoom in 4x.
+         * - BmpSurface Bitmap: bitmap of the zoomed surface
+         * - ROI Rect: rectangle of the ROI in BmpSurface coordinates
+         * To set the AE and AF regions, the coordinates must be in the camera array coordinates
+         * but the detected ROI of the FLC display is relative to the Bitmap generated for detection
+         * */
+        fun scaleRect(zoom : android.graphics.Rect, bmpSurface: Bitmap, rectROI : Rect) : android.graphics.Rect {
+            val scale = zoom.height() / bmpSurface.height
+            val left = zoom.left + rectROI.y() * zoom.height() / bmpSurface.height
+            val top = zoom.top + rectROI.x() * zoom.height() / bmpSurface.height
+            val right = left + rectROI.width() * zoom.height() / bmpSurface.height
+            val bottom = top + rectROI.height() * zoom.height() / bmpSurface.height
+            //Log.i("FLC","scale: $scale, left: $left, top: $top, right: $right, bottom: $bottom")
+
+            return android.graphics.Rect(left,top,right,bottom)
+        }
     }
 }
