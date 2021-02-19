@@ -171,6 +171,11 @@ class CameraFragment : Fragment()  {
                 MeteringRectangle.METERING_WEIGHT_MAX-1)))
             set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(args.zoom,
                 MeteringRectangle.METERING_WEIGHT_MAX-1)))
+            //Added by Miguel 19/2
+            /*Control Mode to auto + AF to Continuous + AE to Auto*/
+            set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO)
+            set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+            set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON)
         }.let {
             // Creates a list of highly optimized capture requests sent to the camera for a high
             // speed video session. Important note: Must use repeating burst request type
@@ -420,6 +425,11 @@ class CameraFragment : Fragment()  {
                     MeteringRectangle.METERING_WEIGHT_MAX-1)))
                 set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(regionAEAF,
                     MeteringRectangle.METERING_WEIGHT_MAX-1)))
+                //Added by Miguel 19/2
+                /*Control Mode to auto + AF to Continuous + AE to Auto*/
+                set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO)
+                set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON)
             }.let {
                 // Creates a list of highly optimized capture requests sent to the camera for a high
                 // speed video session. Important note: Must use repeating burst request type
@@ -456,6 +466,11 @@ class CameraFragment : Fragment()  {
                     MeteringRectangle.METERING_WEIGHT_MAX-1)))
                 set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(regionAEAF,
                     MeteringRectangle.METERING_WEIGHT_MAX-1)))
+                //Added by Miguel 19/2
+                /*Control Mode to auto + AF to Continuous + AE to Auto*/
+                set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO)
+                set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON)
             }.let {
                 // Creates a list of highly optimized capture requests sent to the camera for a high
                 // speed video session. Important note: Must use repeating burst request type
