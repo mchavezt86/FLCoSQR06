@@ -178,35 +178,6 @@ class CameraFragment : Fragment()  {
         }
     }
 
-    /** Requests used for preview and recording in the [CameraConstrainedHighSpeedCaptureSession] */
-    private val recordRequestList: List<CaptureRequest> by lazy {
-        // Capture request holds references to target surfaces
-        session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-            // Add the preview and recording surface targets
-            addTarget(viewFinder.holder.surface)
-            addTarget(recorderSurface)
-            // Sets user requested FPS for all targets
-            set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(args.fps, args.fps))
-            //Added by Miguel - Zoom 4x
-            set(CaptureRequest.SCALER_CROP_REGION,args.zoom)
-            //Added by Miguel 02/09 - Lowest AE Exposure Compensation
-            //set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO)
-            //set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON)
-            set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,args.aeLow)
-            //Added by Miguel 10/10 - Lock AE when recording.
-            //set(CaptureRequest.CONTROL_AE_LOCK,true)
-            //Added by Miguel 12/01 - AE region and focus region
-            set(CaptureRequest.CONTROL_AE_REGIONS,arrayOf(MeteringRectangle(args.zoom,
-                MeteringRectangle.METERING_WEIGHT_MAX-1)))
-            set(CaptureRequest.CONTROL_AF_REGIONS, arrayOf(MeteringRectangle(args.zoom,
-                MeteringRectangle.METERING_WEIGHT_MAX-1)))
-        }.let {
-            // Creates a list of highly optimized capture requests sent to the camera for a high
-            // speed video session. Important note: Must use repeating burst request type
-            session.createHighSpeedRequestList(it.build())
-        }
-    }
-
     //private var recordingStartMillis: Long = 0L
 
     //Added by Miguel 20/08/2020: Avoids break of port/land when the camera is rotated.
@@ -427,6 +398,7 @@ class CameraFragment : Fragment()  {
 
         /*Change the AE and AF regions to match the ROI area*/
         val regionAEAF = ImageProcess.scaleRect(args.zoom,bmpSurf,rectROI)
+        val roiFrame = ImageProcess.roiScale(rectROI,args.width,args.height,previewSize)
 
         /** Requests used for preview only in the [CameraConstrainedHighSpeedCaptureSession] */
         /*Added to create a new preview with AE and AF region set to the display area*/
@@ -455,13 +427,14 @@ class CameraFragment : Fragment()  {
             }
         }
 
-        /*Change the preview to one focused on the display*/
+        /*Stop preview session*/
         session.stopRepeating()
-        //delay(1000)
-        session.setRepeatingBurst(newPreviewRequestList, null, cameraHandler)
 
         /*Set the capture_button visible*/
         capture_button.visibility = Button.VISIBLE
+
+        /*Change the preview to one focused on the display*/
+        session.setRepeatingBurst(newPreviewRequestList, null, cameraHandler)
 
         /** Requests used for preview and recording in the [CameraConstrainedHighSpeedCaptureSession] */
         val recordRequestList: List<CaptureRequest> by lazy {
@@ -493,94 +466,9 @@ class CameraFragment : Fragment()  {
         // Listen to the capture button
         capture_button.setOnTouchListener { view, event ->
             when (event.action) {
-                //Changed by Miguel 18-08-2020
-                //MotionEvent.ACTION_DOWN
-                /*MotionEvent.ACTION_UP -> lifecycleScope.launch(Dispatchers.IO) {
-                    if (!record) {
-                        record = true
-                        // Prevents screen rotation during the video recording
-                        requireActivity().requestedOrientation =
-                            ActivityInfo.SCREEN_ORIENTATION_LOCKED
 
-                        //Added by Miguel 10/10
-                        session
-
-                        // Stops preview requests, and start record requests
-                        session.stopRepeating()
-                        session.setRepeatingBurst(recordRequestList, null, cameraHandler)
-
-                        // Finalizes recorder setup and starts recording
-                        recorder.apply {
-                            // Sets output orientation based on current sensor value at start time
-                            relativeOrientation.value?.let { setOrientationHint(it) }
-                            prepare()
-                            start()
-                        }
-                        recordingStartMillis = System.currentTimeMillis()
-                        Log.d(TAG, "Recording started")
-                        Log.i("FLC","StartVideo")
-
-                        // Starts recording animation
-                        overlay.post(animationTask)
-                    }
-                /* Modified by Miguel
-                }
-
-                MotionEvent.ACTION_UP -> lifecycleScope.launch(Dispatchers.IO) { */
-                else {
-                        record = false
-                        // Unlocks screen rotation after recording finished
-                        requireActivity().requestedOrientation =
-                            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-
-                        //Commented by Miguel 20-12-20
-                        // Requires recording of at least MIN_REQUIRED_RECORDING_TIME_MILLIS
-                        /*val elapsedTimeMillis = System.currentTimeMillis() - recordingStartMillis
-                        if (elapsedTimeMillis < MIN_REQUIRED_RECORDING_TIME_MILLIS) {
-                            delay(MIN_REQUIRED_RECORDING_TIME_MILLIS - elapsedTimeMillis)
-                        }*/
-
-                        Log.d(TAG, "Recording stopped. Output file: $outputFile")
-                        recorder.stop()
-
-                        // Removes recording animation
-                        overlay.removeCallbacks(animationTask)
-
-                        //Commented by Miguel 20-12-20
-                        // Broadcasts the media file to the rest of the system
-                        /*MediaScannerConnection.scanFile(
-                            view.context, arrayOf(outputFile.absolutePath), null, null
-                        )*/
-
-                        // Launch external activity via intent to play video recorded using our provider
-                        /*startActivity(Intent().apply {
-                            action = Intent.ACTION_VIEW
-                            type = MimeTypeMap.getSingleton()
-                                .getMimeTypeFromExtension(outputFile.extension)
-                            val authority = "${BuildConfig.APPLICATION_ID}.provider"
-                            data = FileProvider.getUriForFile(view.context, authority, outputFile)
-                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        })*/
-
-                        // Finishes our current camera screen
-                        recorded = true // Added by Miguel
-                        //mainActivity.video = "$outputFile" // Added by Miguel 28/08
-                        //delay(MainActivity.ANIMATION_SLOW_MILLIS) //Commented by Miguel 20-12-20
-                        //navController.popBackStack()
-                        Handler(Looper.getMainLooper()).post {/**Maybe disable button?*/
-                            Navigation.findNavController(requireActivity(),R.id.fragment_container)
-                                .navigate(CameraFragmentDirections.actionCameraToDecoder(
-                                     "$outputFile",rectROI!!.y(),previewSize.width -
-                                            rectROI!!.x() - rectROI!!.width(),rectROI!!.height(),
-                                    rectROI!!.width()))
-                            /*The actual values of the ROI rectangle needed for OpenCV Mat requires
-                            * width and height to be swap, Mat_x coordinate is y  and Mat_x is
-                            * measured from the other end so its 720 - x - w */
-                        } //Test 01/09
-                    }
-                }*/
                 MotionEvent.ACTION_DOWN -> lifecycleScope.launch(Dispatchers.IO) {
+
                     // Prevents screen rotation during the video recording
                     requireActivity().requestedOrientation =
                         ActivityInfo.SCREEN_ORIENTATION_LOCKED
@@ -618,11 +506,15 @@ class CameraFragment : Fragment()  {
                         /**Maybe disable button?*/
                         Navigation.findNavController(requireActivity(), R.id.fragment_container)
                             .navigate(
-                                CameraFragmentDirections.actionCameraToDecoder(
+                                /*CameraFragmentDirections.actionCameraToDecoder(
                                     "$outputFile", rectROI.y(), previewSize.width -
                                             rectROI.x() - rectROI.width(), rectROI.height(),
                                     rectROI.width()
-                                )
+                                )*/
+                                CameraFragmentDirections.actionCameraToDecoder(
+                                        "$outputFile", roiFrame.x(), roiFrame.y(),
+                                        roiFrame.width(), roiFrame.height()
+                            )
                             )
                         /*The actual values of the ROI rectangle needed for OpenCV Mat requires
                         * width and height to be swap, Mat_x coordinate is y  and Mat_x is

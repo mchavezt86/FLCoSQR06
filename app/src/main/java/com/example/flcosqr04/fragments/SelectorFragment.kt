@@ -139,6 +139,7 @@ class SelectorFragment : Fragment() {
                     cameraConfig.highSpeedVideoSizes.forEach { size ->
                         cameraConfig.getHighSpeedVideoFpsRangesFor(size).forEach { fpsRange ->
                             val fps = fpsRange.upper
+                            Log.i("FPS range", fpsRange.toString())
                             val info = CameraInfo(
                                 "$orientation ($id) $size $fps FPS", id, size, fps, zoom,
                                     aeRange.lower)
@@ -167,6 +168,9 @@ class SelectorFragment : Fragment() {
                             }
                         }
                     }
+                    val rangeAE = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+
+                    Log.i("mact", "Camera AE Range: ${rangeAE.contentToString()}")
                 }
 
             }

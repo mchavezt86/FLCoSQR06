@@ -5,6 +5,7 @@ import android.media.Image
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import android.util.Size
 import android.view.PixelCopy
 import com.example.android.camera.utils.AutoFitSurfaceView
 import org.bytedeco.opencv.global.opencv_core.CV_8UC1
@@ -282,6 +283,24 @@ class ImageProcess {
             //Log.i("FLC","scale: $scale, left: $left, top: $top, right: $right, bottom: $bottom")
 
             return android.graphics.Rect(left,top,right,bottom)
+        }
+
+        /**Function to:
+         * Compute an OpenCV rectangle from another OpenCV rectangle. This scales the ROI rectangle
+         * computed by the detectROI function (in Bitmap coordinates) to a Rect in the pixel
+         * coordinates (Mat format)
+         * Input: OpenCV Rect
+         * Output: OpenCV Rect*/
+        fun roiScale(roi: Rect, width: Int, height: Int, previewSize: Size) : Rect {
+            /*The actual values of the ROI rectangle needed for OpenCV Mat requires
+            * width and height to be swap, Mat_x coordinate is y  and Mat_y is
+            * measured from the other end so its 720 - x - w */
+            val x = (roi.y() * width) / previewSize.height
+            val y = height - ((roi.x() + roi.width()) * height) / previewSize.width
+            val w = (roi.height() * width) / previewSize.height
+            val h = (roi.width() * height) / previewSize.width
+
+            return Rect(x,y,w,h)
         }
     }
 }
